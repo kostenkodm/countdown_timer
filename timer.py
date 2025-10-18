@@ -16,6 +16,62 @@ def get_config_dir():
 BASE_DIR = get_base_dir()
 CONFIG_DIR = get_config_dir()
 
+# === Проверка обновлений ===
+def check_for_updates():
+    import requests, zipfile, io, subprocess
+    GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
+    VERSION_FILE = os.path.join(BASE_DIR, "version.json")
+    RELEASE_URL = f"{GITHUB_REPO}/releases/latest/download/countdown_timer.zip"
+    RAW_VERSION_URL = f"{GITHUB_REPO}/raw/main/version.json"
+
+    def get_local_version():
+        if os.path.exists(VERSION_FILE):
+            try:
+                with open(VERSION_FILE, encoding="utf-8") as f:
+                    data = json.load(f)
+                    return data.get("version", "0.0.0")
+            except Exception:
+                return "0.0.0"
+        return "0.0.0"
+
+    def get_remote_version():
+        try:
+            r = requests.get(RAW_VERSION_URL, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                return data.get("version", "0.0.0")
+        except Exception:
+            return "0.0.0"
+        return "0.0.0"
+
+    def is_newer(remote, local):
+        try:
+            return tuple(map(int, remote.split("."))) > tuple(map(int, local.split(".")))
+        except Exception:
+            return False
+
+    def download_and_extract():
+        try:
+            r = requests.get(RELEASE_URL, stream=True, timeout=15)
+            z = zipfile.ZipFile(io.BytesIO(r.content))
+            z.extractall(BASE_DIR)
+            print("✅ Обновление загружено.")
+            subprocess.Popen(["update.bat"])
+            sys.exit()
+        except Exception as e:
+            print("⚠ Ошибка обновления:", e)
+
+    local = get_local_version()
+    remote = get_remote_version()
+    if is_newer(remote, local):
+        print(f"🔄 Доступно обновление: {local} → {remote}")
+        download_and_extract()
+    else:
+        print("✅ Используется последняя версия.")
+
+# === Запуск проверки в фоне ===
+threading.Thread(target=check_for_updates, daemon=True).start()
+
 
 class TransparentTimer:
     def __init__(self, root):
@@ -256,7 +312,5 @@ if __name__ == "__main__":
         root.iconbitmap(icon_path)
     app = TransparentTimer(root)
     root.mainloop()
-
-
 
 #pyinstaller --onefile --windowed --icon=icon.ico --add-data "alarm.wav;." timer.py
