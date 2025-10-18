@@ -1,24 +1,24 @@
 @echo off
 setlocal
 
-echo Р—Р°РІР°РЅС‚Р°Р¶РµРЅРЅСЏ РѕР±РЅРѕРІР»РµРЅРёСЏ...
+echo Запрос обновления...
 
-:: РџСѓС‚СЊ Рє С‚РµРєСѓС‰РµР№ РїР°РїРєРµ
+:: Путь к текущей папке
 set "BASE_DIR=%~dp0"
 
-:: РЎРєР°С‡РёРІР°РµРј Р°СЂС…РёРІ СЃ GitHub
+:: Скачиваем архив с GitHub
 powershell -Command "Invoke-WebRequest -Uri 'https://github.com/kostenkodm/countdown_timer/releases/latest/download/timer.zip' -OutFile '%BASE_DIR%update.zip'"
 
-:: Р Р°Р·Р°СЂС…РёРІРёСЂСѓРµРј
+:: Разархивируем
 powershell -Command "Expand-Archive -Path '%BASE_DIR%update.zip' -DestinationPath '%BASE_DIR%temp_update' -Force"
 
-:: РљРѕРїРёСЂСѓРµРј РЅРѕРІС‹Рµ С„Р°Р№Р»С‹ (Р·Р°РјРµРЅСЏРµРј СЃС‚Р°СЂС‹Рµ)
+:: Копируем новые файлы (заменяем старые)
 xcopy "%BASE_DIR%temp_update\countdown_timer-main\*" "%BASE_DIR%" /E /Y /I
 
-:: РЈРґР°Р»СЏРµРј РІСЂРµРјРµРЅРЅС‹Рµ С„Р°Р№Р»С‹
+:: Удаляем временные файлы
 rmdir /S /Q "%BASE_DIR%temp_update"
 del /Q "%BASE_DIR%update.zip"
 
-echo РћР±РЅРѕРІР»РµРЅРёРµ Р·Р°РІРµСЂС€РµРЅРѕ. Р—Р°РїСѓСЃРєР°РµРј С‚Р°Р№РјРµСЂ...
+echo Обновление завершено. Запускаем таймер...
 start "" "%BASE_DIR%timer.exe"
 exit
