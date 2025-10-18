@@ -21,7 +21,7 @@ def check_for_updates():
     import requests, zipfile, io, subprocess
     GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
     VERSION_FILE = os.path.join(BASE_DIR, "version.json")
-    RELEASE_URL = f"{GITHUB_REPO}/releases/latest/download/countdown_timer.zip"
+    RELEASE_URL = f"{GITHUB_REPO}/releases/latest/download/timer.zip"
     RAW_VERSION_URL = f"{GITHUB_REPO}/raw/main/version.json"
 
     def get_local_version():

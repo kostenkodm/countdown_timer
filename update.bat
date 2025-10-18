@@ -7,7 +7,7 @@ echo Завантаження обновления...
 set "BASE_DIR=%~dp0"
 
 :: Скачиваем архив с GitHub
-powershell -Command "Invoke-WebRequest -Uri 'https://github.com/kostenkodm/countdown_timer/archive/refs/heads/main.zip' -OutFile '%BASE_DIR%update.zip'"
+powershell -Command "Invoke-WebRequest -Uri 'https://github.com/kostenkodm/countdown_timer/releases/latest/download/timer.zip' -OutFile '%BASE_DIR%update.zip'"
 
 :: Разархивируем
 powershell -Command "Expand-Archive -Path '%BASE_DIR%update.zip' -DestinationPath '%BASE_DIR%temp_update' -Force"
