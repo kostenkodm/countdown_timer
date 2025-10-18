@@ -1,53 +1,55 @@
 # Transparent Timer
 
-A lightweight, customizable, always-on-top countdown timer with transparent window support. Built with Python and Tkinter.
+Простой прозрачный таймер с настройкой шрифта, цвета и звукового сигнала. Подходит для настольного использования на Windows.  
 
-## Features
+## Возможности
 
-- Always-on-top timer window
-- Draggable timer display
-- Countdown with minutes and seconds
-- Countdown can go negative (up to -5 minutes)
-- Customizable font size
-- Customizable window transparency
-- Background color choice: White or Black
-- Play custom WAV file when timer reaches zero
-- Saves user settings and timer window position
-- Works as standalone `.exe` using PyInstaller
+- Настройка минут и секунд таймера.  
+- Прозрачное окно таймера с перетаскиванием.  
+- Настройка размера шрифта и цвета фона.  
+- Выбор звукового сигнала (WAV).  
+- Автоматическая проверка обновлений с GitHub.  
+- Поддержка Windows без установленного Python (через exe).  
 
-## Installation
+## Установка
 
-1. Clone or download the repository.
-2. Install Python 3.10+.
-3. Install dependencies (if not included in standard library):
+1. Скачайте последний релиз с [GitHub Releases](https://github.com/kostenkodm/countdown_timer/releases).  
+2. Распакуйте архив в удобную папку.  
+3. Запустите `timer.exe`.  
+
+> Все необходимые файлы (`timer.exe`, `update.bat`) находятся рядом и запускаются автоматически.  
+
+## Использование
+
+1. Откройте таймер (`timer.exe`).  
+2. Установите нужное время (минуты и секунды).  
+3. Настройте шрифт, прозрачность и цвет фона.  
+4. Выберите звуковой сигнал.  
+5. Нажмите **Старт**, **Пауза** или **Стоп**.  
+
+> Таймер может работать в фоновом режиме. Если время истечёт, проигрывается выбранный сигнал.  
+
+## Автообновление
+
+- При запуске таймер проверяет наличие новой версии через GitHub.  
+- Если доступна новая версия, скачивается архив, старые файлы заменяются, и таймер перезапускается.  
+- Файлы для обновления:
+  - `update_checker.py` — проверка версий.  
+  - `update.bat` — загрузка и установка.  
+
+## Сборка из исходников
+
+Для сборки exe требуется Python и PyInstaller:  
 
 ```bash
 pip install pyinstaller
-```
-
-Running
-From source:
-
-```bash
-python timer.py
-```
-As executable:
-
-The project can be compiled to a standalone .exe using PyInstaller:
-```bash
 pyinstaller --onefile --windowed --icon=icon.ico --add-data "alarm.wav;." timer.py
 ```
-After building, the executable will be located in the dist/ folder.
+## Версия
 
-## Usage
+Текущая версия: 1.0.3
+Версия хранится в version.json для корректной работы автообновления.
 
-1. Open the timer.
-2. Set minutes and seconds.
-3. Adjust font size, transparency, and background color.
-4. Select a custom WAV file if desired (default: alarm.wav).
-5. Use Start, Pause, or Stop buttons.
-6. Drag the timer window to any position on the screen. Position is saved automatically.
+## Лицензия
 
-## Settings
-Settings and timer position are saved in %APPDATA%\TransparentTimer (Windows) as settings.json and position.json.
-Font size, background color, transparency, and chosen signal are remembered between sessions.
+MIT License
