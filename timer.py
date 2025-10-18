@@ -251,3 +251,5 @@ if __name__ == "__main__":
 
     app = TransparentTimer(root)
     root.mainloop()
+
+#pyinstaller --onefile --windowed --icon=icon.ico --add-data "alarm.wav;." timer.py
