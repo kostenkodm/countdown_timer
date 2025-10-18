@@ -4,11 +4,13 @@ import time
 import threading
 import winsound
 import os
+import json
 
 class TransparentTimer:
     def __init__(self, root):
         self.root = root
         self.root.title("Управление таймером")
+        self.load_settings()
 
         self.time_left = 0  # в секундах
         self.running = False
@@ -20,6 +22,30 @@ class TransparentTimer:
 
         self.create_main_window()
         self.create_timer_window()
+
+    def load_settings(self):
+        settings_path = os.path.join(os.path.dirname(__file__), "settings.json")
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.signal_file = data.get("signal_file", self.signal_file)
+                    self.font_size = data.get("font_size", self.font_size)
+                    self.bg_color = data.get("bg_color", self.bg_color)
+                    self.opacity = data.get("opacity", self.opacity)
+            except Exception:
+                pass  # если файл поврежден — просто игнорируем
+
+    def save_settings(self):
+        settings_path = os.path.join(os.path.dirname(__file__), "settings.json")
+        data = {
+            "signal_file": self.signal_file,
+            "font_size": self.font_size,
+            "bg_color": self.bg_color,
+            "opacity": self.opacity
+        }
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
     def create_main_window(self):
         frame = tk.Frame(self.root)
@@ -39,20 +65,22 @@ class TransparentTimer:
 
         # Шрифт
         tk.Label(frame, text="Высота шрифта:").grid(row=1, column=0, padx=5)
-        self.font_scale = tk.Scale(frame, from_=10, to=150, orient=tk.HORIZONTAL)
+        self.font_scale = tk.Scale(frame, from_=10, to=60, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
         self.font_scale.set(self.font_size)
         self.font_scale.grid(row=1, column=1, columnspan=3, padx=5, pady=5, sticky="we")
 
         # Прозрачность
         tk.Label(frame, text="Прозрачность окна:").grid(row=2, column=0, padx=5)
-        self.opacity_scale = tk.Scale(frame, from_=0.1, to=1.0, resolution=0.05, orient=tk.HORIZONTAL)
+        self.opacity_scale = tk.Scale(frame, from_=0.1, to=1.0, resolution=0.05, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
         self.opacity_scale.set(self.opacity)
         self.opacity_scale.grid(row=2, column=1, columnspan=3, padx=5, pady=5, sticky="we")
 
         # Цвет фона
         tk.Label(frame, text="Цвет фона:").grid(row=3, column=0, padx=5)
         self.bg_var = tk.StringVar(value="Белый")
-        tk.OptionMenu(frame, self.bg_var, "Чёрный", "Белый").grid(row=3, column=1, columnspan=3, padx=5, pady=5, sticky="we")
+        bg_menu = tk.OptionMenu(frame, self.bg_var, "Чёрный", "Белый", command=lambda v: self.apply_settings())
+        bg_menu.grid(row=3, column=1, columnspan=3, padx=5, pady=5, sticky="we")
+
 
         # Кнопки управления
         tk.Button(frame, text="Старт", command=self.start_timer).grid(row=4, column=0, padx=5, pady=5)
@@ -61,7 +89,7 @@ class TransparentTimer:
         tk.Button(frame, text="Выбрать сигнал", command=self.choose_signal).grid(row=4, column=3, padx=5, pady=5)
 
         # Применить настройки
-        tk.Button(frame, text="Применить настройки", command=self.apply_settings).grid(row=5, column=0, columnspan=4, pady=10)
+        # tk.Button(frame, text="Применить настройки", command=self.apply_settings).grid(row=5, column=0, columnspan=4, pady=10)
 
     def create_timer_window(self):
         self.timer_window = tk.Toplevel(self.root)
@@ -85,10 +113,15 @@ class TransparentTimer:
         self.timer_label.bind("<B1-Motion>", self.do_move)
 
     def set_timer_geometry(self):
-        screen_width = self.timer_window.winfo_screenwidth()
-        screen_height = self.timer_window.winfo_screenheight()
-        x = screen_width // 2 - 120
-        y = screen_height // 2 - 60
+        saved = self.load_position()
+        if saved:
+            x = saved.get("x", 100)
+            y = saved.get("y", 100)
+        else:
+            screen_width = self.timer_window.winfo_screenwidth()
+            screen_height = self.timer_window.winfo_screenheight()
+            x = screen_width // 2 - 120
+            y = screen_height // 2 - 60
         self.timer_window.geometry(f"240x120+{x}+{y}")
 
     def start_move(self, event):
@@ -99,6 +132,21 @@ class TransparentTimer:
         x = self.timer_window.winfo_x() + (event.x - self._drag_x)
         y = self.timer_window.winfo_y() + (event.y - self._drag_y)
         self.timer_window.geometry(f"+{x}+{y}")
+        self.timer_position = (x, y)
+        self.save_position()
+
+    def save_position(self):
+        pos_path = os.path.join(os.path.dirname(__file__), "position.json")
+        data = {"x": self.timer_window.winfo_x(), "y": self.timer_window.winfo_y()}
+        with open(pos_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+    def load_position(self):
+        pos_path = os.path.join(os.path.dirname(__file__), "position.json")
+        if os.path.exists(pos_path):
+            with open(pos_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return None
 
     def apply_settings(self):
         # Шрифт
