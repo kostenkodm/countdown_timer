@@ -47,7 +47,7 @@ pyinstaller --onefile --windowed --icon=icon.ico --add-data "alarm.wav;." timer.
 ```
 ## Версия
 
-Текущая версия: 1.0.3
+Текущая версия: 1.0.5
 Версия хранится в version.json для корректной работы автообновления.
 
 ## Лицензия
