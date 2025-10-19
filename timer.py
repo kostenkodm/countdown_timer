@@ -352,6 +352,10 @@ if __name__ == "__main__":
     if os.path.exists(icon_path):
         root.iconbitmap(icon_path)
     app = TransparentTimer(root)
+    # устанавливаем иконку и для окна таймера
+    if os.path.exists(icon_path):
+        app.timer_window.iconbitmap(icon_path)
     root.mainloop()
+
 
 #pyinstaller --onefile --windowed --icon=icon.ico --add-data "alarm.wav;." --add-data "version.json;." timer.py
