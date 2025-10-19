@@ -79,6 +79,7 @@ class TransparentTimer:
         self.root.title("Управление таймером")
         self.settings_path = os.path.join(CONFIG_DIR, "settings.json")
         self.position_path = os.path.join(CONFIG_DIR, "position.json")
+        self.show_clock = True
 
         # Значения по умолчанию
         self.time_left = 0
@@ -99,6 +100,8 @@ class TransparentTimer:
         self.create_timer_window()
         # Настройки применяются только после инициализации интерфейса
         self.apply_settings()
+        # Запускаем показ текущего времени, если таймер не активен
+        threading.Thread(target=self.show_clock_when_idle, daemon=True).start()
 
     # === Загрузка и сохранение ===
     def load_settings(self):
@@ -110,6 +113,7 @@ class TransparentTimer:
                     self.font_size = data.get("font_size", self.font_size)
                     self.bg_color = data.get("bg_color", self.bg_color)
                     self.opacity = data.get("opacity", self.opacity)
+                    self.show_clock = data.get("show_clock", True)
             except Exception:
                 pass
 
@@ -119,6 +123,7 @@ class TransparentTimer:
             "font_size": self.font_size,
             "bg_color": self.bg_color,
             "opacity": self.opacity,
+            "show_clock": self.show_clock,
         }
         with open(self.settings_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -192,6 +197,14 @@ class TransparentTimer:
         ttk.Button(button_frame, text="Стоп", command=self.stop_timer).grid(row=0, column=2, padx=5)
         ttk.Button(button_frame, text="Сигнал", command=self.choose_signal).grid(row=0, column=3, padx=5)
         ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).grid(row=0, column=4, padx=5)
+        # Переключатель отображения часов
+        self.clock_var = tk.BooleanVar(value=self.show_clock)
+        ttk.Checkbutton(
+            frame,
+            text="Показывать текущее время в покое",
+            variable=self.clock_var,
+            command=self.toggle_clock_mode
+        ).grid(row=5, column=0, columnspan=5, pady=5, sticky="w")
 
     # === Окно таймера ===
     def create_timer_window(self):
@@ -221,6 +234,23 @@ class TransparentTimer:
         self.timer_label.bind("<ButtonPress-1>", self.start_move)
         self.timer_label.bind("<B1-Motion>", self.do_move)
         self.timer_label.bind("<ButtonRelease-1>", lambda e: self.save_position())
+
+    # === Текущее время ===
+
+    def toggle_clock_mode(self):
+        self.show_clock = self.clock_var.get()
+        self.save_settings()
+
+    def show_clock_when_idle(self):
+        while True:
+            if not self.running and self.time_left == 0:
+                if self.show_clock:
+                    now = time.strftime("%H:%M:%S")
+                    self.timer_label.config(text=now, fg="gray")
+                else:
+                    self.timer_label.config(text="00:00", fg="gray")
+            time.sleep(1)
+
 
     # === Перетаскивание ===
     def start_move(self, event):
@@ -270,6 +300,12 @@ class TransparentTimer:
         self.time_left = 0
         self.signal_played = False
         self.update_label()
+        self.show_current_time()
+
+    def show_current_time(self):
+        now = time.strftime("%H:%M:%S")
+        self.timer_label.config(text=now, fg="gray")
+
 
     def choose_signal(self):
         file_path = filedialog.askopenfilename(
@@ -296,7 +332,12 @@ class TransparentTimer:
                 self.signal_played = True
             time.sleep(1)
             self.time_left -= 1
+
+        # Таймер завершён — возвращаем часы
         self.running = False
+        self.time_left = 0
+        self.show_current_time()
+
 
     def update_label(self):
         minutes, seconds = divmod(abs(self.time_left), 60)
