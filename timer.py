@@ -348,7 +348,7 @@ class TransparentTimer:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    icon_path = os.path.join(BASE_DIR, "icon.ico")
+    icon_path = os.path.join(BASE_DIR, "clock.ico")
     if os.path.exists(icon_path):
         root.iconbitmap(icon_path)
     app = TransparentTimer(root)
@@ -358,4 +358,4 @@ if __name__ == "__main__":
     root.mainloop()
 
 
-#pyinstaller --onefile --windowed --icon=icon.ico --add-data "alarm.wav;." --add-data "version.json;." timer.py
+#pyinstaller --onefile --windowed --icon=clock.ico --add-data "alarm.wav;." --add-data "version.json;." --add-data "clock.ico;." timer.py
