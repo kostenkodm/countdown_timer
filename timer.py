@@ -190,13 +190,13 @@ class TransparentTimer:
 
         # Кнопки управления
         button_frame = ttk.Frame(frame)
-        button_frame.grid(row=4, column=0, columnspan=5, pady=(8, 0))
+        button_frame.grid(row=4, column=0, columnspan=4, pady=(8, 0))
 
         ttk.Button(button_frame, text="Старт", command=self.start_timer).grid(row=0, column=0, padx=5)
-        ttk.Button(button_frame, text="Пауза", command=self.pause_timer).grid(row=0, column=1, padx=5)
-        ttk.Button(button_frame, text="Стоп", command=self.stop_timer).grid(row=0, column=2, padx=5)
-        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal).grid(row=0, column=3, padx=5)
-        ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).grid(row=0, column=4, padx=5)
+        # ttk.Button(button_frame, text="Пауза", command=self.pause_timer).grid(row=0, column=1, padx=5)
+        ttk.Button(button_frame, text="Стоп", command=self.stop_timer).grid(row=0, column=1, padx=5)
+        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal).grid(row=0, column=2, padx=5)
+        ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).grid(row=0, column=3, padx=5)
         # Переключатель отображения часов
         self.clock_var = tk.BooleanVar(value=self.show_clock)
         ttk.Checkbutton(
