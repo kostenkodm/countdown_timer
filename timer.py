@@ -14,25 +14,31 @@ def get_config_dir():
     return path
 
 BASE_DIR = get_base_dir()
+VERSION_FILE = os.path.join(BASE_DIR, "version.json")
+try:
+    with open(VERSION_FILE, "r", encoding="utf-8") as f:
+        VERSION = json.load(f).get("version", "0.0.0")
+except Exception:
+    VERSION = "0.0.0"
+
 CONFIG_DIR = get_config_dir()
 
 # === Проверка обновлений ===
 def check_for_updates():
     import requests, zipfile, io, subprocess
+
     GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
     VERSION_FILE = os.path.join(BASE_DIR, "version.json")
     RELEASE_URL = f"{GITHUB_REPO}/releases/latest/download/timer.zip"
     RAW_VERSION_URL = f"{GITHUB_REPO}/raw/main/version.json"
 
     def get_local_version():
-        if os.path.exists(VERSION_FILE):
-            try:
-                with open(VERSION_FILE, encoding="utf-8") as f:
-                    data = json.load(f)
-                    return data.get("version", "0.0.0")
-            except Exception:
-                return "0.0.0"
-        return "0.0.0"
+        try:
+            with open(VERSION_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("version", "0.0.0")
+        except Exception:
+            return "0.0.0"
 
     def get_remote_version():
         try:
@@ -42,7 +48,6 @@ def check_for_updates():
                 return data.get("version", "0.0.0")
         except Exception:
             return "0.0.0"
-        return "0.0.0"
 
     def is_newer(remote, local):
         try:
@@ -55,17 +60,49 @@ def check_for_updates():
             r = requests.get(RELEASE_URL, stream=True, timeout=15)
             z = zipfile.ZipFile(io.BytesIO(r.content))
             z.extractall(BASE_DIR)
-            print("✅ Обновление загружено.")
             subprocess.Popen(["update.bat"])
             sys.exit()
         except Exception as e:
-            print("⚠ Ошибка обновления:", e)
+            messagebox.showerror("Ошибка обновления", f"Не удалось установить обновление:\n{e}")
 
     local = get_local_version()
     remote = get_remote_version()
+
     if is_newer(remote, local):
-        print(f"🔄 Доступно обновление: {local} → {remote}")
-        download_and_extract()
+        # === Создание настоящего модального окна ===
+        win = tk.Toplevel(root)
+        win.title("Обновление доступно")
+        win.geometry("340x160")
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+        win.grab_set()  # делает окно модальным
+        win.focus_set()
+
+        msg = tk.Label(
+            win,
+            text=f"Найдена новая версия {remote}\n(текущая {local})",
+            justify="center",
+            font=("Segoe UI", 10)
+        )
+        msg.pack(pady=15)
+
+        tk.Label(win, text="Хотите обновить сейчас?", font=("Segoe UI", 9)).pack(pady=5)
+
+        def on_update():
+            msg.config(text="Загрузка обновления...")
+            for widget in win.winfo_children():
+                if isinstance(widget, tk.Button):
+                    widget.config(state="disabled")
+            root.update()
+            download_and_extract()
+
+        def on_cancel():
+            win.destroy()
+
+        frame = tk.Frame(win)
+        frame.pack(pady=10)
+        tk.Button(frame, text="Обновить", command=on_update, width=12).pack(side="left", padx=8)
+        tk.Button(frame, text="Позже", command=on_cancel, width=12).pack(side="right", padx=8)
     else:
         print("✅ Используется последняя версия.")
 
@@ -76,7 +113,7 @@ threading.Thread(target=check_for_updates, daemon=True).start()
 class TransparentTimer:
     def __init__(self, root):
         self.root = root
-        self.root.title("Управление таймером")
+        self.root.title(f"Управление таймером - {VERSION}")
         self.settings_path = os.path.join(CONFIG_DIR, "settings.json")
         self.position_path = os.path.join(CONFIG_DIR, "position.json")
         self.show_clock = True
@@ -348,13 +385,14 @@ class TransparentTimer:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    icon_path = os.path.join(BASE_DIR, "clock.ico")
+    icon_path = os.path.join(BASE_DIR, "icon.ico")
     if os.path.exists(icon_path):
         root.iconbitmap(icon_path)
     app = TransparentTimer(root)
-    # устанавливаем иконку и для окна таймера
-    if os.path.exists(icon_path):
-        app.timer_window.iconbitmap(icon_path)
+
+    # Запуск проверки обновлений после загрузки интерфейса
+    root.after(2000, lambda: threading.Thread(target=lambda: check_for_updates(), daemon=True).start())
+
     root.mainloop()
 
 
