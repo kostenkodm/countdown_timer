@@ -107,9 +107,31 @@ def check_for_updates():
         print("✅ Используется последняя версия.")
 
 # === Запуск проверки в фоне ===
-threading.Thread(target=check_for_updates, daemon=True).start()
+# threading.Thread(target=check_for_updates, daemon=True).start()
 
+class InfoDialog(tk.Toplevel):
+    def __init__(self, parent, current_version, latest_version):
+        super().__init__(parent)
+        self.title("Информация о приложении")
+        self.configure(bg="#ffffff")
+        self.geometry("360x250")
+        self.resizable(False, False)
+        self.attributes("-topmost", True)
+        self.grab_set()
 
+        # Центрируем
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_reqwidth()) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - self.winfo_reqheight()) // 2
+        self.geometry(f"+{x}+{y}")
+
+        tk.Label(self, text="Прозрачный таймер", font=("Segoe UI", 13, "bold"), fg="white", bg="#ffffff").pack(pady=(20, 5))
+        tk.Label(self, text="Разработчик: Костенко Д.М.", font=("Segoe UI", 10), fg="#000000", bg="#ffffff").pack(pady=2)
+        tk.Label(self, text="Репозиторий: github.com/kostenkodm", font=("Segoe UI", 10), fg="#4da6ff", bg="#ffffff", cursor="hand2").pack(pady=2)
+
+        tk.Label(self, text=f"Текущая версия: {current_version}", font=("Segoe UI", 10), fg="#000000", bg="#ffffff").pack(pady=5)
+        tk.Label(self, text=f"Доступная версия: {latest_version or 'неизвестно'}", font=("Segoe UI", 10), fg="#000000", bg="#ffffff").pack(pady=(0, 15))
+        
 class TransparentTimer:
     def __init__(self, root):
         self.root = root
@@ -139,6 +161,18 @@ class TransparentTimer:
         self.apply_settings()
         # Запускаем показ текущего времени, если таймер не активен
         threading.Thread(target=self.show_clock_when_idle, daemon=True).start()
+    def show_info(self):
+        """Открывает окно с информацией о приложении"""
+        try:
+            import requests
+            GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
+            RAW_VERSION_URL = f"{GITHUB_REPO}/raw/main/version.json"
+            r = requests.get(RAW_VERSION_URL, timeout=5)
+            latest_version = r.json().get("version", "неизвестно") if r.status_code == 200 else "неизвестно"
+        except Exception:
+            latest_version = "неизвестно"
+
+        InfoDialog(self.root, current_version=VERSION, latest_version=latest_version)
 
     # === Загрузка и сохранение ===
     def load_settings(self):
@@ -185,11 +219,28 @@ class TransparentTimer:
 
     # === Главное окно ===
     def create_main_window(self):
+                # === Главное меню ===
+        menubar = tk.Menu(self.root)
+
+        # Меню "Файл"
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Проверить обновление", command=check_for_updates)
+        file_menu.add_separator()
+        file_menu.add_command(label="Выход", command=self.root.quit)
+        menubar.add_cascade(label="Действия", menu=file_menu)
+
+        # Меню "Справка"
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label="О программе", command=self.show_info)
+        menubar.add_cascade(label="Справка", menu=help_menu)
+
+        # Применяем меню
+        self.root.config(menu=menubar)
+
         frame = ttk.LabelFrame(self.root, text="Настройки таймера", padding=10)
         self.root.attributes("-topmost", True)
         frame.pack(padx=12, pady=12, fill="x")
 
-        # Минуты и секунды
         ttk.Label(frame, text="Минуты:").grid(row=0, column=0, padx=5, pady=3)
         self.minutes_entry = ttk.Entry(frame, width=6)
         self.minutes_entry.insert(0, "1")
@@ -200,48 +251,43 @@ class TransparentTimer:
         self.seconds_entry.insert(0, "0")
         self.seconds_entry.grid(row=0, column=3, padx=5, pady=3)
 
-        # Размер шрифта
+        # Шрифт
         ttk.Label(frame, text="Размер шрифта:").grid(row=1, column=0, padx=5, pady=3)
-        self.font_scale = ttk.Scale(
-            frame, from_=10, to=60, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings()
-        )
+        self.font_scale = ttk.Scale(frame, from_=10, to=60, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
         self.font_scale.set(self.font_size)
         self.font_scale.grid(row=1, column=1, columnspan=3, sticky="we", padx=5)
 
         # Прозрачность
         ttk.Label(frame, text="Прозрачность окна:").grid(row=2, column=0, padx=5, pady=3)
-        self.opacity_scale = ttk.Scale(
-            frame, from_=0.1, to=1.0, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings()
-        )
+        self.opacity_scale = ttk.Scale(frame, from_=0.1, to=1.0, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
         self.opacity_scale.set(self.opacity)
         self.opacity_scale.grid(row=2, column=1, columnspan=3, sticky="we", padx=5)
 
-        # Цвет фона
+        # Цвет
         ttk.Label(frame, text="Цвет фона:").grid(row=3, column=0, padx=5, pady=3)
         self.bg_var = tk.StringVar(value="Белый" if self.bg_color == "white" else "Чёрный")
-        bg_combo = ttk.Combobox(
-            frame, textvariable=self.bg_var, values=["Белый", "Чёрный"], state="readonly", width=10
-        )
+        bg_combo = ttk.Combobox(frame, textvariable=self.bg_var, values=["Белый", "Чёрный"], state="readonly", width=10)
         bg_combo.grid(row=3, column=1, columnspan=3, padx=5, pady=3)
         bg_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_settings())
 
-        # Кнопки управления
+        # Кнопки
         button_frame = ttk.Frame(frame)
         button_frame.grid(row=4, column=0, columnspan=4, pady=(8, 0))
 
         ttk.Button(button_frame, text="Старт", command=self.start_timer).grid(row=0, column=0, padx=5)
-        # ttk.Button(button_frame, text="Пауза", command=self.pause_timer).grid(row=0, column=1, padx=5)
         ttk.Button(button_frame, text="Стоп", command=self.stop_timer).grid(row=0, column=1, padx=5)
         ttk.Button(button_frame, text="Сигнал", command=self.choose_signal).grid(row=0, column=2, padx=5)
         ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).grid(row=0, column=3, padx=5)
-        # Переключатель отображения часов
+
         self.clock_var = tk.BooleanVar(value=self.show_clock)
-        ttk.Checkbutton(
-            frame,
-            text="Показывать текущее время в покое",
-            variable=self.clock_var,
-            command=self.toggle_clock_mode
-        ).grid(row=5, column=0, columnspan=5, pady=5, sticky="w")
+        ttk.Checkbutton(frame, text="Показывать текущее время в покое", variable=self.clock_var, command=self.toggle_clock_mode).grid(row=5, column=0, columnspan=5, pady=5, sticky="w")
+
+        # # Нижняя панель
+        # footer = tk.Frame(self.root)
+        # footer.pack()
+        # ttk.Label(self.root, text=f"Версия: {VERSION}", foreground="gray", font=("Segoe UI", 9)).pack(side="bottom", pady=5)
+
+
 
     # === Окно таймера ===
     def create_timer_window(self):
