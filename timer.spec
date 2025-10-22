@@ -5,7 +5,7 @@ a = Analysis(
     ['timer.py'],
     pathex=[],
     binaries=[],
-    datas=[('alarm.wav', '.'), ('version.json', '.'), ('clock.ico', '.')],
+    datas=[('alarm.wav', '.'), ('version.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

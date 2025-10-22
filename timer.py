@@ -143,7 +143,7 @@ class TransparentTimer:
         self.show_clock = True
 
         # Значения по умолчанию
-        self.time_left = 5
+        self.time_left = 0
         self.running = False
         self.signal_played = False
         self.signal_file = os.path.join(BASE_DIR, "alarm.wav")
@@ -151,8 +151,8 @@ class TransparentTimer:
         self.bg_color = "white"
         self.opacity = 0.8
         self.timer_pos = None
-        self.num_plays = 3  # Новое: количество воспроизведений
-        self.sound_enabled = True  # Новое: включен ли сигнал
+        self.num_plays = 1
+        self.sound_enabled = True
 
         # Загружаем настройки и позицию
         self.load_settings()
@@ -163,11 +163,10 @@ class TransparentTimer:
         self.create_timer_window()
         # Настройки применяются только после инициализации интерфейса
         self.apply_settings()
-        # Запускаем показ текущего времени, если таймер не активен
-        threading.Thread(target=self.show_clock_when_idle, daemon=True).start()
+        # Запускаем обновление часов (без потока)
+        self.update_clock()
 
     def show_info(self):
-        """Открывает окно с информацией о приложении"""
         try:
             import requests
             GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
@@ -190,8 +189,8 @@ class TransparentTimer:
                     self.bg_color = data.get("bg_color", self.bg_color)
                     self.opacity = data.get("opacity", self.opacity)
                     self.show_clock = data.get("show_clock", True)
-                    self.num_plays = data.get("num_plays", 1)  # Новое
-                    self.sound_enabled = data.get("sound_enabled", True)  # Новое
+                    self.num_plays = data.get("num_plays", 1)
+                    self.sound_enabled = data.get("sound_enabled", True)
             except Exception:
                 pass
 
@@ -202,8 +201,8 @@ class TransparentTimer:
             "bg_color": self.bg_color,
             "opacity": self.opacity,
             "show_clock": self.show_clock,
-            "num_plays": self.num_plays,  # Новое
-            "sound_enabled": self.sound_enabled,  # Новое
+            "num_plays": self.num_plays,
+            "sound_enabled": self.sound_enabled,
         }
         with open(self.settings_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -228,22 +227,18 @@ class TransparentTimer:
 
     # === Главное окно ===
     def create_main_window(self):
-        # === Главное меню ===
         menubar = tk.Menu(self.root)
 
-        # Меню "Файл"
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Проверить обновление", command=check_for_updates)
         file_menu.add_separator()
         file_menu.add_command(label="Выход", command=self.root.quit)
         menubar.add_cascade(label="Действия", menu=file_menu)
 
-        # Меню "Справка"
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="О программе", command=self.show_info)
         menubar.add_cascade(label="Справка", menu=help_menu)
 
-        # Применяем меню
         self.root.config(menu=menubar)
 
         frame = ttk.LabelFrame(self.root, text="Настройки таймера", padding=10)
@@ -260,68 +255,45 @@ class TransparentTimer:
         self.seconds_entry.insert(0, "0")
         self.seconds_entry.grid(row=0, column=3, padx=5, pady=3)
 
-        # Шрифт
         ttk.Label(frame, text="Размер шрифта:").grid(row=1, column=0, padx=5, pady=3)
         self.font_scale = ttk.Scale(frame, from_=10, to=60, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
         self.font_scale.set(self.font_size)
         self.font_scale.grid(row=1, column=1, columnspan=2, sticky="we", padx=5)
-        self.font_value_label = ttk.Label(frame, text=str(self.font_size))  # Новое: лейбл для значения
+        self.font_value_label = ttk.Label(frame, text=str(self.font_size))
         self.font_value_label.grid(row=1, column=3, padx=5, pady=3)
 
-        # Прозрачность
         ttk.Label(frame, text="Прозрачность окна:").grid(row=2, column=0, padx=5, pady=3)
         self.opacity_scale = ttk.Scale(frame, from_=0.1, to=1.0, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
         self.opacity_scale.set(self.opacity)
         self.opacity_scale.grid(row=2, column=1, columnspan=2, sticky="we", padx=5)
-        self.opacity_value_label = ttk.Label(frame, text=f"{self.opacity:.2f}")  # Новое: лейбл для значения
+        self.opacity_value_label = ttk.Label(frame, text=f"{self.opacity:.2f}")
         self.opacity_value_label.grid(row=2, column=3, padx=5, pady=3)
 
-        # Цвет
         ttk.Label(frame, text="Цвет фона:").grid(row=3, column=0, padx=5, pady=3)
         self.bg_var = tk.StringVar(value="Белый" if self.bg_color == "white" else "Чёрный")
         bg_combo = ttk.Combobox(frame, textvariable=self.bg_var, values=["Белый", "Чёрный"], state="readonly", width=10)
         bg_combo.grid(row=3, column=1, columnspan=3, padx=5, pady=3)
         bg_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_settings())
 
-        # Новое: Кол-во воспроизведений
         ttk.Label(frame, text="Кол-во воспроизведений:").grid(row=4, column=0, padx=5, pady=3)
         self.num_plays_entry = ttk.Entry(frame, width=6)
         self.num_plays_entry.insert(0, str(self.num_plays))
         self.num_plays_entry.grid(row=4, column=1, padx=5, pady=3)
         self.num_plays_entry.bind("<FocusOut>", lambda e: self.update_num_plays())
 
-        # Кнопки
         button_frame = ttk.Frame(frame)
         button_frame.grid(row=5, column=0, columnspan=4, pady=(8, 0))
 
         ttk.Button(button_frame, text="Старт", command=self.start_timer).grid(row=0, column=0, padx=5)
         ttk.Button(button_frame, text="Стоп", command=self.stop_timer).grid(row=0, column=1, padx=5)
-        ttk.Button(button_frame, text="Файл сигнала", command=self.choose_signal).grid(row=0, column=2, padx=5)
+        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal).grid(row=0, column=2, padx=5)
         ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).grid(row=0, column=3, padx=5)
 
         self.clock_var = tk.BooleanVar(value=self.show_clock)
         ttk.Checkbutton(frame, text="Показывать текущее время в покое", variable=self.clock_var, command=self.toggle_clock_mode).grid(row=6, column=0, columnspan=5, pady=5, sticky="w")
 
-        # Новое: Переключатель для сигнала
         self.sound_var = tk.BooleanVar(value=self.sound_enabled)
         ttk.Checkbutton(frame, text="Воспроизводить сигнал", variable=self.sound_var, command=self.toggle_sound).grid(row=7, column=0, columnspan=5, pady=5, sticky="w")
-
-    # === Обновление количества воспроизведений ===
-    def update_num_plays(self):
-        try:
-            self.num_plays = int(self.num_plays_entry.get())
-            if self.num_plays < 0:
-                self.num_plays = 0
-        except ValueError:
-            self.num_plays = 1
-        self.num_plays_entry.delete(0, tk.END)
-        self.num_plays_entry.insert(0, str(self.num_plays))
-        self.save_settings()
-
-    # === Переключатель звука ===
-    def toggle_sound(self):
-        self.sound_enabled = self.sound_var.get()
-        self.save_settings()
 
     # === Окно таймера ===
     def create_timer_window(self):
@@ -352,20 +324,21 @@ class TransparentTimer:
         self.timer_label.bind("<B1-Motion>", self.do_move)
         self.timer_label.bind("<ButtonRelease-1>", lambda e: self.save_position())
 
-    # === Текущее время ===
+    # === Текущее время (без потока) ===
     def toggle_clock_mode(self):
         self.show_clock = self.clock_var.get()
         self.save_settings()
+        self.update_clock()  # Немедленное обновление при смене режима
 
-    def show_clock_when_idle(self):
-        while True:
-            if not self.running and self.time_left == 0:
-                if self.show_clock:
-                    now = time.strftime("%H:%M:%S")
-                    self.timer_label.config(text=now, fg="gray")
-                else:
-                    self.timer_label.config(text="00:00", fg="gray")
-            time.sleep(1)
+    def update_clock(self):
+        if not self.running and self.time_left == 0:
+            if self.show_clock:
+                now = time.strftime("%H:%M:%S")
+                self.timer_label.config(text=now, fg="gray")
+            else:
+                self.timer_label.config(text="00:00", fg="gray")
+        # Планируем следующий вызов через 1 секунду
+        self.root.after(1000, self.update_clock)
 
     # === Перетаскивание ===
     def start_move(self, event):
@@ -380,7 +353,7 @@ class TransparentTimer:
     # === Настройки применения ===
     def apply_settings(self):
         if not hasattr(self, "timer_window"):
-            return  # окно ещё не создано
+            return
 
         self.font_size = int(self.font_scale.get())
         self.opacity = float(self.opacity_scale.get())
@@ -391,7 +364,6 @@ class TransparentTimer:
         self.timer_label.config(bg=self.bg_color, font=("Consolas", self.font_size, "bold"))
         self.timer_window.attributes("-transparentcolor", self.bg_color)
 
-        # Новое: Обновляем лейблы значений
         self.font_value_label.config(text=str(self.font_size))
         self.opacity_value_label.config(text=f"{self.opacity:.2f}")
 
@@ -403,7 +375,7 @@ class TransparentTimer:
             minutes = int(self.minutes_entry.get())
             seconds = int(self.seconds_entry.get())
             self.time_left = minutes * 60 + seconds
-            self.update_num_plays()  # Обновляем количество перед стартом
+            self.update_num_plays()
         except ValueError:
             return
 
@@ -451,22 +423,40 @@ class TransparentTimer:
                     sound = pygame.mixer.Sound(self.signal_file)
                     for _ in range(self.num_plays):
                         sound.play()
-                        pygame.time.wait(int(sound.get_length() * 1000) + 100)  # Ожидание окончания + пауза
+                        pygame.time.wait(int(sound.get_length() * 1000) + 100)
                 self.signal_played = True
             time.sleep(1)
             self.time_left -= 1
 
-        # Таймер завершён — возвращаем часы
         self.running = False
         self.time_left = 0
-        self.show_current_time()
+        self.root.after(0, self.update_clock)  # Безопасный вызов обновления часов из главного потока
 
     def update_label(self):
+        self.root.after(0, lambda: self._update_label_safe())  # Безопасный вызов из потока
+
+    def _update_label_safe(self):
         minutes, seconds = divmod(abs(self.time_left), 60)
         sign = "-" if self.time_left < 0 else ""
         color = "red" if self.time_left < 0 else "green"
         self.timer_label.config(text=f"{sign}{minutes:02d}:{seconds:02d}", fg=color)
 
+    # === Обновление количества воспроизведений ===
+    def update_num_plays(self):
+        try:
+            self.num_plays = int(self.num_plays_entry.get())
+            if self.num_plays < 0:
+                self.num_plays = 0
+        except ValueError:
+            self.num_plays = 1
+        self.num_plays_entry.delete(0, tk.END)
+        self.num_plays_entry.insert(0, str(self.num_plays))
+        self.save_settings()
+
+    # === Переключатель звука ===
+    def toggle_sound(self):
+        self.sound_enabled = self.sound_var.get()
+        self.save_settings()
 
 if __name__ == "__main__":
     root = tk.Tk()
@@ -479,3 +469,5 @@ if __name__ == "__main__":
     root.after(2000, lambda: threading.Thread(target=lambda: check_for_updates(), daemon=True).start())
 
     root.mainloop()
+
+    #pyinstaller --onefile --windowed --icon=clock.ico --add-data "alarm.wav;." --add-data "version.json;." timer.py
