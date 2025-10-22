@@ -540,10 +540,12 @@ class TransparentTimer:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    root.attributes("-topmost", True)  # <- добавляем
     icon_path = os.path.join(BASE_DIR, "icon.ico")
     if os.path.exists(icon_path):
         root.iconbitmap(icon_path)
     app = TransparentTimer(root)
+
 
     root.after(2000, lambda: threading.Thread(target=lambda: check_for_updates(), daemon=True).start())
 
