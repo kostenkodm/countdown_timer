@@ -1,6 +1,7 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import time, threading, winsound, os, sys, json
+from tkinter import ttk, filedialog, messagebox, simpledialog
+import time, os, sys, json
+import threading
 import pygame
 pygame.mixer.init()
 
@@ -24,6 +25,7 @@ except Exception:
     VERSION = "0.0.0"
 
 CONFIG_DIR = get_config_dir()
+PRESETS_PATH = os.path.join(CONFIG_DIR, "presets.json")
 
 # === Проверка обновлений ===
 def check_for_updates():
@@ -71,13 +73,12 @@ def check_for_updates():
     remote = get_remote_version()
 
     if is_newer(remote, local):
-        # === Создание настоящего модального окна ===
         win = tk.Toplevel(root)
         win.title("Обновление доступно")
         win.geometry("340x160")
         win.resizable(False, False)
         win.attributes("-topmost", True)
-        win.grab_set()  # делает окно модальным
+        win.grab_set()
         win.focus_set()
 
         msg = tk.Label(
@@ -108,9 +109,6 @@ def check_for_updates():
     else:
         print("✅ Используется последняя версия.")
 
-# === Запуск проверки в фоне ===
-# threading.Thread(target=check_for_updates, daemon=True).start()
-
 class InfoDialog(tk.Toplevel):
     def __init__(self, parent, current_version, latest_version):
         super().__init__(parent)
@@ -121,19 +119,18 @@ class InfoDialog(tk.Toplevel):
         self.attributes("-topmost", True)
         self.grab_set()
 
-        # Центрируем
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - self.winfo_reqwidth()) // 2
         y = parent.winfo_y() + (parent.winfo_height() - self.winfo_reqheight()) // 2
         self.geometry(f"+{x}+{y}")
 
-        tk.Label(self, text="Прозрачный таймер", font=("Segoe UI", 13, "bold"), fg="white", bg="#ffffff").pack(pady=(20, 5))
-        tk.Label(self, text="Разработчик: Костенко Д.М.", font=("Segoe UI", 10), fg="#000000", bg="#ffffff").pack(pady=2)
+        tk.Label(self, text="Прозрачный таймер", font=("Segoe UI", 13, "bold"), fg="#333333", bg="#ffffff").pack(pady=(20, 5))
+        tk.Label(self, text="Разработчик: Костенко Д.М.", font=("Segoe UI", 10), fg="#555555", bg="#ffffff").pack(pady=2)
         tk.Label(self, text="Репозиторий: github.com/kostenkodm", font=("Segoe UI", 10), fg="#4da6ff", bg="#ffffff", cursor="hand2").pack(pady=2)
 
-        tk.Label(self, text=f"Текущая версия: {current_version}", font=("Segoe UI", 10), fg="#000000", bg="#ffffff").pack(pady=5)
-        tk.Label(self, text=f"Доступная версия: {latest_version or 'неизвестно'}", font=("Segoe UI", 10), fg="#000000", bg="#ffffff").pack(pady=(0, 15))
-        
+        tk.Label(self, text=f"Текущая версия: {current_version}", font=("Segoe UI", 10), fg="#555555", bg="#ffffff").pack(pady=5)
+        tk.Label(self, text=f"Доступная версия: {latest_version or 'неизвестно'}", font=("Segoe UI", 10), fg="#555555", bg="#ffffff").pack(pady=(0, 15))
+
 class TransparentTimer:
     def __init__(self, root):
         self.root = root
@@ -142,7 +139,6 @@ class TransparentTimer:
         self.position_path = os.path.join(CONFIG_DIR, "position.json")
         self.show_clock = True
 
-        # Значения по умолчанию
         self.time_left = 0
         self.running = False
         self.signal_played = False
@@ -153,17 +149,15 @@ class TransparentTimer:
         self.timer_pos = None
         self.num_plays = 1
         self.sound_enabled = True
+        self.presets = {}
 
-        # Загружаем настройки и позицию
         self.load_settings()
         self.load_position()
+        self.load_presets()
 
-        # Создаём интерфейс
         self.create_main_window()
         self.create_timer_window()
-        # Настройки применяются только после инициализации интерфейса
         self.apply_settings()
-        # Запускаем обновление часов (без потока)
         self.update_clock()
 
     def show_info(self):
@@ -178,7 +172,6 @@ class TransparentTimer:
 
         InfoDialog(self.root, current_version=VERSION, latest_version=latest_version)
 
-    # === Загрузка и сохранение ===
     def load_settings(self):
         if os.path.exists(self.settings_path):
             try:
@@ -225,10 +218,77 @@ class TransparentTimer:
         except Exception:
             pass
 
-    # === Главное окно ===
-    def create_main_window(self):
-        menubar = tk.Menu(self.root)
+    def load_presets(self):
+        if os.path.exists(PRESETS_PATH):
+            try:
+                with open(PRESETS_PATH, "r", encoding="utf-8") as f:
+                    self.presets = json.load(f)
+            except Exception:
+                self.presets = self.get_default_presets()
+        else:
+            self.presets = self.get_default_presets()
 
+    def save_presets(self):
+        with open(PRESETS_PATH, "w", encoding="utf-8") as f:
+            json.dump(self.presets, f, indent=2, ensure_ascii=False)
+
+    def get_default_presets(self):
+        return {
+            "Ларин": {"minutes": 5, "seconds": 0, "font_size": 33, "opacity": 0.8, "bg_color": "white", "num_plays": 1, "sound_enabled": True},
+            "Пегов": {"minutes": 3, "seconds": 0, "font_size": 33, "opacity": 0.8, "bg_color": "white", "num_plays": 1, "sound_enabled": True}
+        }
+
+    def apply_preset(self, event=None):
+        preset_name = self.preset_var.get()
+        if preset_name in self.presets:
+            preset = self.presets[preset_name]
+            self.minutes_entry.delete(0, tk.END)
+            self.minutes_entry.insert(0, str(preset.get("minutes", 1)))
+            self.seconds_entry.delete(0, tk.END)
+            self.seconds_entry.insert(0, str(preset.get("seconds", 0)))
+            self.font_scale.set(preset.get("font_size", 33))
+            self.opacity_scale.set(preset.get("opacity", 0.8))
+            self.bg_var.set("Белый" if preset.get("bg_color", "white") == "white" else "Чёрный")
+            self.num_plays_entry.delete(0, tk.END)
+            self.num_plays_entry.insert(0, str(preset.get("num_plays", 1)))
+            self.sound_var.set(preset.get("sound_enabled", True))
+            self.apply_settings()
+
+    def save_new_preset(self):
+        name = simpledialog.askstring("Сохранить пресет", "Введите имя пресета:")
+        if name:
+            preset = {
+                "minutes": int(self.minutes_entry.get() or 0),
+                "seconds": int(self.seconds_entry.get() or 0),
+                "font_size": self.font_size,
+                "opacity": self.opacity,
+                "bg_color": self.bg_color,
+                "num_plays": self.num_plays,
+                "sound_enabled": self.sound_enabled
+            }
+            self.presets[name] = preset
+            self.save_presets()
+            self.update_preset_menu()
+
+    def delete_preset(self):
+        preset_name = self.preset_var.get()
+        if preset_name in self.presets:
+            del self.presets[preset_name]
+            self.save_presets()
+            self.update_preset_menu()
+
+    def update_preset_menu(self):
+        self.preset_combo['values'] = list(self.presets.keys())
+        if self.presets:
+            self.preset_var.set(list(self.presets.keys())[0])
+        else:
+            self.preset_var.set("")
+
+    def create_main_window(self):
+        style = ttk.Style()
+        style.theme_use('clam')  # Современная тема
+
+        menubar = tk.Menu(self.root)
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Проверить обновление", command=check_for_updates)
         file_menu.add_separator()
@@ -241,61 +301,88 @@ class TransparentTimer:
 
         self.root.config(menu=menubar)
 
-        frame = ttk.LabelFrame(self.root, text="Настройки таймера", padding=10)
-        self.root.attributes("-topmost", True)
-        frame.pack(padx=12, pady=12, fill="x")
+        main_frame = ttk.Frame(self.root, padding=15)
+        main_frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="Минуты:").grid(row=0, column=0, padx=5, pady=3)
-        self.minutes_entry = ttk.Entry(frame, width=6)
+        # Блок времени
+        time_frame = ttk.LabelFrame(main_frame, text="Время", padding=10)
+        time_frame.pack(fill="x", pady=5)
+
+        ttk.Label(time_frame, text="Минуты:").grid(row=0, column=0, padx=10, pady=5, sticky="e")
+        self.minutes_entry = ttk.Entry(time_frame, width=8)
         self.minutes_entry.insert(0, "1")
-        self.minutes_entry.grid(row=0, column=1, padx=5, pady=3)
+        self.minutes_entry.grid(row=0, column=1, pady=5)
 
-        ttk.Label(frame, text="Секунды:").grid(row=0, column=2, padx=5, pady=3)
-        self.seconds_entry = ttk.Entry(frame, width=6)
+        ttk.Label(time_frame, text="Секунды:").grid(row=0, column=2, padx=10, pady=5, sticky="e")
+        self.seconds_entry = ttk.Entry(time_frame, width=8)
         self.seconds_entry.insert(0, "0")
-        self.seconds_entry.grid(row=0, column=3, padx=5, pady=3)
+        self.seconds_entry.grid(row=0, column=3, pady=5)
 
-        ttk.Label(frame, text="Размер шрифта:").grid(row=1, column=0, padx=5, pady=3)
-        self.font_scale = ttk.Scale(frame, from_=10, to=60, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
+        # Блок визуала
+        visual_frame = ttk.LabelFrame(main_frame, text="Визуал", padding=10)
+        visual_frame.pack(fill="x", pady=5)
+
+        ttk.Label(visual_frame, text="Размер шрифта:").grid(row=0, column=0, padx=10, pady=5, sticky="e")
+        self.font_scale = ttk.Scale(visual_frame, from_=10, to=60, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
         self.font_scale.set(self.font_size)
-        self.font_scale.grid(row=1, column=1, columnspan=2, sticky="we", padx=5)
-        self.font_value_label = ttk.Label(frame, text=str(self.font_size))
-        self.font_value_label.grid(row=1, column=3, padx=5, pady=3)
+        self.font_scale.grid(row=0, column=1, sticky="we", pady=5)
+        self.font_value_label = ttk.Label(visual_frame, text=str(self.font_size), width=4)
+        self.font_value_label.grid(row=0, column=2, padx=5, pady=5)
 
-        ttk.Label(frame, text="Прозрачность окна:").grid(row=2, column=0, padx=5, pady=3)
-        self.opacity_scale = ttk.Scale(frame, from_=0.1, to=1.0, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
+        ttk.Label(visual_frame, text="Прозрачность:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        self.opacity_scale = ttk.Scale(visual_frame, from_=0.1, to=1.0, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
         self.opacity_scale.set(self.opacity)
-        self.opacity_scale.grid(row=2, column=1, columnspan=2, sticky="we", padx=5)
-        self.opacity_value_label = ttk.Label(frame, text=f"{self.opacity:.2f}")
-        self.opacity_value_label.grid(row=2, column=3, padx=5, pady=3)
+        self.opacity_scale.grid(row=1, column=1, sticky="we", pady=5)
+        self.opacity_value_label = ttk.Label(visual_frame, text=f"{self.opacity:.2f}", width=4)
+        self.opacity_value_label.grid(row=1, column=2, padx=5, pady=5)
 
-        ttk.Label(frame, text="Цвет фона:").grid(row=3, column=0, padx=5, pady=3)
+        ttk.Label(visual_frame, text="Цвет фона:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
         self.bg_var = tk.StringVar(value="Белый" if self.bg_color == "white" else "Чёрный")
-        bg_combo = ttk.Combobox(frame, textvariable=self.bg_var, values=["Белый", "Чёрный"], state="readonly", width=10)
-        bg_combo.grid(row=3, column=1, columnspan=3, padx=5, pady=3)
+        bg_combo = ttk.Combobox(visual_frame, textvariable=self.bg_var, values=["Белый", "Чёрный"], state="readonly", width=10)
+        bg_combo.grid(row=2, column=1, columnspan=2, pady=5, sticky="w")
         bg_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_settings())
 
-        ttk.Label(frame, text="Кол-во воспроизведений:").grid(row=4, column=0, padx=5, pady=3)
-        self.num_plays_entry = ttk.Entry(frame, width=6)
+        # Блок звука
+        sound_frame = ttk.LabelFrame(main_frame, text="Звук", padding=10)
+        sound_frame.pack(fill="x", pady=5)
+
+        ttk.Label(sound_frame, text="Кол-во воспр.:").grid(row=0, column=0, padx=10, pady=5, sticky="e")
+        self.num_plays_entry = ttk.Entry(sound_frame, width=8)
         self.num_plays_entry.insert(0, str(self.num_plays))
-        self.num_plays_entry.grid(row=4, column=1, padx=5, pady=3)
+        self.num_plays_entry.grid(row=0, column=1, pady=5)
         self.num_plays_entry.bind("<FocusOut>", lambda e: self.update_num_plays())
 
-        button_frame = ttk.Frame(frame)
-        button_frame.grid(row=5, column=0, columnspan=4, pady=(8, 0))
+        self.sound_var = tk.BooleanVar(value=self.sound_enabled)
+        ttk.Checkbutton(sound_frame, text="Воспроизводить сигнал", variable=self.sound_var, command=self.toggle_sound).grid(row=1, column=0, columnspan=3, pady=5, sticky="w")
 
-        ttk.Button(button_frame, text="Старт", command=self.start_timer).grid(row=0, column=0, padx=5)
-        ttk.Button(button_frame, text="Стоп", command=self.stop_timer).grid(row=0, column=1, padx=5)
-        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal).grid(row=0, column=2, padx=5)
-        ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).grid(row=0, column=3, padx=5)
+        # Блок пресетов
+        preset_frame = ttk.LabelFrame(main_frame, text="Пресеты", padding=10)
+        preset_frame.pack(fill="x", pady=5)
+
+        ttk.Label(preset_frame, text="Выбрать:").grid(row=0, column=0, padx=10, pady=5, sticky="e")
+        self.preset_var = tk.StringVar()
+        self.preset_combo = ttk.Combobox(preset_frame, textvariable=self.preset_var, state="readonly", width=20)
+        self.update_preset_menu()
+        self.preset_combo.grid(row=0, column=1, pady=5)
+        self.preset_combo.bind("<<ComboboxSelected>>", self.apply_preset)
+
+        preset_button_frame = ttk.Frame(preset_frame)
+        preset_button_frame.grid(row=0, column=2, padx=10, pady=5)
+        ttk.Button(preset_button_frame, text="Сохранить", command=self.save_new_preset).pack(side="left", padx=5)
+        ttk.Button(preset_button_frame, text="Удалить", command=self.delete_preset).pack(side="left", padx=5)
+
+        # Блок кнопок
+        button_frame = ttk.Frame(main_frame, padding=10)
+        button_frame.pack(fill="x", pady=10)
+
+        ttk.Button(button_frame, text="Старт", command=self.start_timer, width=10).pack(side="left", padx=10)
+        ttk.Button(button_frame, text="Стоп", command=self.stop_timer, width=10).pack(side="left", padx=10)
+        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal, width=10).pack(side="left", padx=10)
+        ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).pack(side="left", padx=10)
 
         self.clock_var = tk.BooleanVar(value=self.show_clock)
-        ttk.Checkbutton(frame, text="Показывать текущее время в покое", variable=self.clock_var, command=self.toggle_clock_mode).grid(row=6, column=0, columnspan=5, pady=5, sticky="w")
+        ttk.Checkbutton(main_frame, text="Показывать время в покое", variable=self.clock_var, command=self.toggle_clock_mode).pack(anchor="w", pady=5)
 
-        self.sound_var = tk.BooleanVar(value=self.sound_enabled)
-        ttk.Checkbutton(frame, text="Воспроизводить сигнал", variable=self.sound_var, command=self.toggle_sound).grid(row=7, column=0, columnspan=5, pady=5, sticky="w")
-
-    # === Окно таймера ===
     def create_timer_window(self):
         self.timer_window = tk.Toplevel(self.root)
         self.timer_window.overrideredirect(True)
@@ -324,11 +411,10 @@ class TransparentTimer:
         self.timer_label.bind("<B1-Motion>", self.do_move)
         self.timer_label.bind("<ButtonRelease-1>", lambda e: self.save_position())
 
-    # === Текущее время (без потока) ===
     def toggle_clock_mode(self):
         self.show_clock = self.clock_var.get()
         self.save_settings()
-        self.update_clock()  # Немедленное обновление при смене режима
+        self.update_clock()
 
     def update_clock(self):
         if not self.running and self.time_left == 0:
@@ -337,10 +423,8 @@ class TransparentTimer:
                 self.timer_label.config(text=now, fg="gray")
             else:
                 self.timer_label.config(text="00:00", fg="gray")
-        # Планируем следующий вызов через 1 секунду
         self.root.after(1000, self.update_clock)
 
-    # === Перетаскивание ===
     def start_move(self, event):
         self._drag_x = event.x
         self._drag_y = event.y
@@ -350,7 +434,6 @@ class TransparentTimer:
         y = self.timer_window.winfo_y() + (event.y - self._drag_y)
         self.timer_window.geometry(f"+{x}+{y}")
 
-    # === Настройки применения ===
     def apply_settings(self):
         if not hasattr(self, "timer_window"):
             return
@@ -369,7 +452,6 @@ class TransparentTimer:
 
         self.save_settings()
 
-    # === Таймер ===
     def start_timer(self):
         try:
             minutes = int(self.minutes_entry.get())
@@ -430,10 +512,10 @@ class TransparentTimer:
 
         self.running = False
         self.time_left = 0
-        self.root.after(0, self.update_clock)  # Безопасный вызов обновления часов из главного потока
+        self.root.after(0, self.update_clock)
 
     def update_label(self):
-        self.root.after(0, lambda: self._update_label_safe())  # Безопасный вызов из потока
+        self.root.after(0, lambda: self._update_label_safe())
 
     def _update_label_safe(self):
         minutes, seconds = divmod(abs(self.time_left), 60)
@@ -441,7 +523,6 @@ class TransparentTimer:
         color = "red" if self.time_left < 0 else "green"
         self.timer_label.config(text=f"{sign}{minutes:02d}:{seconds:02d}", fg=color)
 
-    # === Обновление количества воспроизведений ===
     def update_num_plays(self):
         try:
             self.num_plays = int(self.num_plays_entry.get())
@@ -453,7 +534,6 @@ class TransparentTimer:
         self.num_plays_entry.insert(0, str(self.num_plays))
         self.save_settings()
 
-    # === Переключатель звука ===
     def toggle_sound(self):
         self.sound_enabled = self.sound_var.get()
         self.save_settings()
@@ -465,7 +545,6 @@ if __name__ == "__main__":
         root.iconbitmap(icon_path)
     app = TransparentTimer(root)
 
-    # Запуск проверки обновлений после загрузки интерфейса
     root.after(2000, lambda: threading.Thread(target=lambda: check_for_updates(), daemon=True).start())
 
     root.mainloop()
