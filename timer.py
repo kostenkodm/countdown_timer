@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, simpledialog
+from tkinter import ttk, filedialog, messagebox, simpledialog, colorchooser
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
+import tkinter.font as tkfont
 import time, os, sys, json, hashlib, requests, zipfile, io, subprocess, threading, shutil
 import pygame
 
@@ -165,8 +166,8 @@ def check_for_updates(parent):
 
         frame = tk.Frame(win)
         frame.pack(pady=5)
-        ttk.Button(frame, text="Обновить", command=on_update, width=12, style="primary.TButton").pack(side="left", padx=8)
-        ttk.Button(frame, text="Позже", command=on_cancel, width=12, style="secondary.TButton").pack(side="right", padx=8)
+        tk.Button(frame, text="Обновить", command=on_update, width=12).pack(side="left", padx=8)
+        tk.Button(frame, text="Позже", command=on_cancel, width=12).pack(side="right", padx=8)
     else:
         print("✅ Используется последняя версия.")
 
@@ -201,22 +202,39 @@ class TransparentTimer:
         self.settings_path = os.path.join(CONFIG_DIR, "settings.json")
         self.position_path = os.path.join(CONFIG_DIR, "position.json")
         self.show_clock = True
+        self.show_progress = True  # Показывать прогресс-бар
 
         # Инициализация переменных
         self.time_left = 0
+        self.initial_time = 0  # Начальное время для прогресс-бара
         self.running = False
         self.signal_played = False
         self.signal_file = os.path.join(BASE_DIR, "alarm.wav")
         self.font_size = 33
+        self.font_family = "Consolas"
+        self.font_weight = "bold"
         self.bg_color = "white"
         self.opacity = 0.8
+        self.fg_positive = "#00FF00"  # Цвет текста для времени > 0
+        self.fg_negative = "#FF0000"  # Цвет текста для времени < 0
+        self.fg_idle = "#808080"      # Цвет текста для состояния покоя
         self.timer_pos = None
         self.num_plays = 1
         self.sound_enabled = True
         self.presets = {}
+        self.theme_name = "flatly"
 
-        # Загрузка настроек и создание окон
+        # Настройка стиля для тонкого прогресс-бара
+        self.style = ttk.Style()
+        self.style.configure("ThinProgressBar.TProgressbar", thickness=5)
+
+        # Загрузка настроек и применение темы
         self.load_settings()
+        try:
+            self.root.style.theme_use(self.theme_name)
+        except Exception:
+            self.theme_name = "flatly"
+            self.root.style.theme_use(self.theme_name)
         self.load_position()
         self.load_presets()
         self.create_main_window()
@@ -244,11 +262,18 @@ class TransparentTimer:
                     data = json.load(f)
                     self.signal_file = data.get("signal_file", self.signal_file)
                     self.font_size = data.get("font_size", self.font_size)
+                    self.font_family = data.get("font_family", "Consolas")
+                    self.font_weight = data.get("font_weight", "bold")
                     self.bg_color = data.get("bg_color", self.bg_color)
                     self.opacity = data.get("opacity", self.opacity)
+                    self.fg_positive = data.get("fg_positive", "#00FF00")
+                    self.fg_negative = data.get("fg_negative", "#FF0000")
+                    self.fg_idle = data.get("fg_idle", "#808080")
                     self.show_clock = data.get("show_clock", True)
+                    self.show_progress = data.get("show_progress", False)
                     self.num_plays = data.get("num_plays", 1)
                     self.sound_enabled = data.get("sound_enabled", True)
+                    self.theme_name = data.get("theme_name", "flatly")
             except Exception:
                 pass
 
@@ -257,11 +282,18 @@ class TransparentTimer:
         data = {
             "signal_file": self.signal_file,
             "font_size": self.font_size,
+            "font_family": self.font_family,
+            "font_weight": self.font_weight,
             "bg_color": self.bg_color,
             "opacity": self.opacity,
+            "fg_positive": self.fg_positive,
+            "fg_negative": self.fg_negative,
+            "fg_idle": self.fg_idle,
             "show_clock": self.show_clock,
+            "show_progress": self.show_progress,
             "num_plays": self.num_plays,
             "sound_enabled": self.sound_enabled,
+            "theme_name": self.theme_name,
         }
         with open(self.settings_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -290,9 +322,9 @@ class TransparentTimer:
         """Сбрасывает позицию окна таймера в центр экрана."""
         screen_w = self.timer_window.winfo_screenwidth()
         screen_h = self.timer_window.winfo_screenheight()
-        x = screen_w // 2 - 120
-        y = screen_h // 2 - 60
-        self.timer_window.geometry(f"240x120+{x}+{y}")
+        x = screen_w // 2 - 150  # Центрируем для ширины 300
+        y = screen_h // 2 - 40   # Центрируем для высоты 80
+        self.timer_window.geometry(f"300x80+{x}+{y}")
         self.timer_pos = {"x": x, "y": y}
         self.save_position()
 
@@ -369,18 +401,126 @@ class TransparentTimer:
         else:
             self.preset_var.set("")
 
+    def open_theme_selection(self):
+        """Открывает модальное окно для выбора темы, шрифта и цветов."""
+        theme_win = tk.Toplevel(self.root)
+        theme_win.title("Настройки темы и шрифта")
+        theme_win.geometry("300x340")
+        theme_win.resizable(False, False)
+        theme_win.attributes("-topmost", True)
+        theme_win.grab_set()
+        theme_win.focus_set()
+
+        # Выбор темы
+        ttk.Label(theme_win, text="Выберите тему:").pack(pady=5)
+        theme_var = tk.StringVar(value=self.theme_name)
+        theme_combo = ttk.Combobox(theme_win, textvariable=theme_var, values=[
+            "darkly", "flatly", "cyborg", "litera", "minty", "morph", "pulse", "sandstone",
+            "simplex", "solar", "superhero", "united", "vapor", "yeti"
+        ], state="readonly")
+        theme_combo.pack(pady=5)
+        theme_combo.bind("<<ComboboxSelected>>", lambda e: self.change_theme(theme_var.get()))
+
+        # Выбор шрифта
+        ttk.Label(theme_win, text="Выберите шрифт:").pack(pady=5)
+        font_frame = ttk.Frame(theme_win)
+        font_frame.pack(pady=5, fill="x", padx=10)
+        self.font_var = tk.StringVar(value=self.font_family)
+        font_combo = ttk.Combobox(font_frame, textvariable=self.font_var, values=["Consolas", "Arial", "Courier New", "Times New Roman"], state="readonly")
+        font_combo.pack(side="left", fill="x", expand=True)
+        font_combo.bind("<<ComboboxSelected>>", lambda e: self.change_font(self.font_var.get(), self.font_weight))
+        ttk.Button(font_frame, text="...", command=self.open_font_dialog, width=3).pack(side="left", padx=5)
+
+        # Выбор цветов
+        ttk.Label(theme_win, text="Цвета текста таймера:").pack(pady=5)
+        color_frame = ttk.Frame(theme_win)
+        color_frame.pack(pady=5, fill="x", padx=10)
+        ttk.Button(color_frame, text="Больше 0", command=lambda: self.choose_color("positive")).pack(fill="x", pady=2)
+        ttk.Button(color_frame, text="Меньше 0", command=lambda: self.choose_color("negative")).pack(fill="x", pady=2)
+        ttk.Button(color_frame, text="Часы", command=lambda: self.choose_color("idle")).pack(fill="x", pady=2)
+
+    def choose_color(self, color_type):
+        """Открывает диалог выбора цвета для текста таймера."""
+        initial_color = getattr(self, f"fg_{color_type}")
+        color = colorchooser.askcolor(initialcolor=initial_color, title=f"Выберите цвет ({color_type})")
+        if color[1]:  # color[1] содержит HEX-значение
+            if color_type == "positive":
+                self.fg_positive = color[1]
+            elif color_type == "negative":
+                self.fg_negative = color[1]
+            elif color_type == "idle":
+                self.fg_idle = color[1]
+            self.apply_settings()
+            self.save_settings()
+
+    def open_font_dialog(self):
+        """Открывает диалог выбора шрифта."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Выбор шрифта")
+        dialog.geometry("300x240")
+        dialog.resizable(False, False)
+        dialog.attributes("-topmost", True)
+        dialog.grab_set()
+
+        ttk.Label(dialog, text="Семейство шрифта:").pack(pady=5)
+        font_families = sorted(list(tkfont.families()))  # Сортировка для удобства
+        font_family_var = tk.StringVar(value=self.font_family)
+        font_combo = ttk.Combobox(dialog, textvariable=font_family_var, values=font_families, state="readonly")
+        font_combo.pack(pady=5, fill="x", padx=10)
+
+        ttk.Label(dialog, text="Стиль шрифта:").pack(pady=5)
+        font_weight_var = tk.StringVar(value=self.font_weight)
+        weight_combo = ttk.Combobox(dialog, textvariable=font_weight_var, values=["normal", "bold"], state="readonly")
+        weight_combo.pack(pady=5, fill="x", padx=10)
+
+        def apply_font():
+            self.change_font(font_family_var.get(), font_weight_var.get())
+            dialog.destroy()
+
+        ttk.Button(dialog, text="Применить", command=apply_font).pack(pady=10)
+
+    def change_theme(self, new_theme):
+        """Меняет тему на лету и сохраняет."""
+        self.theme_name = new_theme
+        try:
+            self.root.style.theme_use(self.theme_name)
+            # Обновляем стиль прогресс-бара
+            if hasattr(self, "progress_bar"):
+                color = self.fg_positive if self.time_left > 0 else self.fg_negative if self.time_left < 0 else self.fg_idle
+                self.style.configure("ThinProgressBar.TProgressbar", background=color)
+        except Exception:
+            self.theme_name = "flatly"
+            self.root.style.theme_use(self.theme_name)
+        self.apply_settings()
+        self.save_settings()
+
+    def change_font(self, new_font, new_weight):
+        """Меняет шрифт таймера на лету и сохраняет."""
+        self.font_family = new_font
+        self.font_weight = new_weight
+        self.apply_settings()
+        self.save_settings()
+
+    def toggle_progress_bar(self):
+        """Включает/выключает прогресс-бар."""
+        self.show_progress = self.progress_var.get()
+        if self.show_progress:
+            self.progress_bar.pack(fill="x", padx=5, pady=2)
+        else:
+            self.progress_bar.pack_forget()
+        self.save_settings()
+
     def create_main_window(self):
         """Создаёт главное окно с современной темой и уменьшенными вертикальными отступами."""
-        style = ttk.Style()
-        style.theme_use('flatly')  # Современная тема из ttkbootstrap
-
         # Меню
         menubar = tk.Menu(self.root)
-        file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Проверить обновление", command=lambda: check_for_updates(self.root))
-        file_menu.add_separator()
-        file_menu.add_command(label="Выход", command=self.root.quit)
-        menubar.add_cascade(label="Действия", menu=file_menu)
+        settings_menu = tk.Menu(menubar, tearoff=0)
+        settings_menu.add_command(label="Выбор темы и шрифта", command=self.open_theme_selection)
+        settings_menu.add_separator()
+        settings_menu.add_command(label="Проверить обновление", command=lambda: check_for_updates(self.root))
+        settings_menu.add_separator()
+        settings_menu.add_command(label="Выход", command=self.root.quit)
+        menubar.add_cascade(label="Настройки", menu=settings_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="О программе", command=self.show_info)
@@ -396,7 +536,7 @@ class TransparentTimer:
         time_frame.pack(fill="x", pady=3)
         ttk.Label(time_frame, text="Минуты:").grid(row=0, column=0, padx=10, pady=3, sticky="e")
         self.minutes_entry = ttk.Entry(time_frame, width=8)
-        self.minutes_entry.insert(0, "1")
+        self.minutes_entry.insert(0, "3")
         self.minutes_entry.grid(row=0, column=1, pady=3)
         ttk.Label(time_frame, text="Секунды:").grid(row=0, column=2, padx=10, pady=3, sticky="e")
         self.seconds_entry = ttk.Entry(time_frame, width=8)
@@ -445,45 +585,62 @@ class TransparentTimer:
         self.preset_combo.grid(row=0, column=1, pady=3)
         preset_button_frame = ttk.Frame(preset_frame)
         preset_button_frame.grid(row=0, column=2, padx=10, pady=3)
-        ttk.Button(preset_button_frame, text="Сохранить", command=self.save_new_preset, style="primary.TButton").pack(side="left", padx=5)
+        ttk.Button(preset_button_frame, text="Сохранить", command=self.save_new_preset).pack(side="left", padx=5)
         ttk.Button(preset_button_frame, text="Удалить", command=self.delete_preset, style="danger.TButton").pack(side="left", padx=5)
 
         # Блок кнопок
         button_frame = ttk.Frame(main_frame, padding=5)
         button_frame.pack(fill="x", pady=5)
-        ttk.Button(button_frame, text="Старт", command=self.start_timer, width=10, style="primary.TButton").pack(side="left", padx=10)
-        ttk.Button(button_frame, text="Стоп", command=self.stop_timer, width=10, style="primary.TButton").pack(side="left", padx=10)
-        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal, width=10, style="primary.TButton").pack(side="left", padx=10)
-        ttk.Button(button_frame, text="▶", command=self.play_sound, width=3, style="primary.TButton").pack(side="left", padx=10)
+        ttk.Button(button_frame, text="Старт", command=self.start_timer, width=10).pack(side="left", padx=10)
+        ttk.Button(button_frame, text="Стоп", command=self.stop_timer, width=10).pack(side="left", padx=10)
+        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal, width=10).pack(side="left", padx=10)
+        ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).pack(side="left", padx=10)
         ttk.Button(button_frame, text="Сброс поз.", command=self.reset_timer_position, width=10, style="danger.TButton").pack(side="left", padx=10)
 
+        # Блок чекбоксов
+        bottom_frame = ttk.Frame(main_frame)
+        bottom_frame.pack(fill="x", pady=3)
         self.clock_var = tk.BooleanVar(value=self.show_clock)
-        ttk.Checkbutton(main_frame, text="Показывать время в покое", variable=self.clock_var, command=self.toggle_clock_mode).pack(anchor="w", pady=3)
+        ttk.Checkbutton(bottom_frame, text="Показывать время в покое", variable=self.clock_var, command=self.toggle_clock_mode).pack(side="left", pady=3)
+        self.progress_var = tk.BooleanVar(value=self.show_progress)
+        ttk.Checkbutton(bottom_frame, text="Показывать прогресс", variable=self.progress_var, command=self.toggle_progress_bar).pack(side="right", pady=3)
 
     def create_timer_window(self):
-        """Создаёт прозрачное окно таймера."""
+        """Создаёт прозрачное окно таймера с прогресс-баром."""
         self.timer_window = tk.Toplevel(self.root)
         self.timer_window.overrideredirect(True)
         self.timer_window.attributes("-topmost", True)
         self.timer_window.attributes("-alpha", self.opacity)
 
         if self.timer_pos:
-            self.timer_window.geometry(f"240x120+{self.timer_pos['x']}+{self.timer_pos['y']}")
+            self.timer_window.geometry(f"300x80+{self.timer_pos['x']}+{self.timer_pos['y']}")
         else:
             screen_w = self.timer_window.winfo_screenwidth()
             screen_h = self.timer_window.winfo_screenheight()
-            x = screen_w // 2 - 120
-            y = screen_h // 2 - 60
-            self.timer_window.geometry(f"240x120+{x}+{y}")
+            x = screen_w // 2 - 150
+            y = screen_h // 2 - 40
+            self.timer_window.geometry(f"300x80+{x}+{y}")
 
         self.timer_label = tk.Label(
             self.timer_window,
             text="00:00",
-            font=("Consolas", self.font_size, "bold"),
-            fg="green",
+            font=(self.font_family, self.font_size, self.font_weight),
+            fg=self.fg_positive,
             bg=self.bg_color,
         )
         self.timer_label.pack(expand=True, fill="both")
+
+        self.progress_bar = ttk.Progressbar(
+            self.timer_window,
+            orient=tk.HORIZONTAL,
+            length=300,
+            mode="determinate",
+            style="ThinProgressBar.TProgressbar"
+        )
+        if self.show_progress:
+            self.progress_bar.pack(fill="x", padx=5, pady=2)
+
+        self.timer_window.attributes("-transparentcolor", self.bg_color)
 
         self.timer_label.bind("<ButtonPress-1>", self.start_move)
         self.timer_label.bind("<B1-Motion>", self.do_move)
@@ -495,14 +652,26 @@ class TransparentTimer:
         self.save_settings()
         self.update_clock()
 
+    def toggle_progress_bar(self):
+        """Включает/выключает прогресс-бар."""
+        self.show_progress = self.progress_var.get()
+        if self.show_progress:
+            self.progress_bar.pack(fill="x", padx=5, pady=2)
+        else:
+            self.progress_bar.pack_forget()
+        self.save_settings()
+
     def update_clock(self):
         """Обновляет часы в окне таймера, если он не активен."""
         if not self.running and self.time_left == 0:
             if self.show_clock:
                 now = time.strftime("%H:%M:%S")
-                self.timer_label.config(text=now, fg="gray")
+                self.timer_label.config(text=now, fg=self.fg_idle)
             else:
-                self.timer_label.config(text="00:00", fg="gray")
+                self.timer_label.config(text="00:00", fg=self.fg_idle)
+            if hasattr(self, "progress_bar") and self.show_progress:
+                self.progress_bar["value"] = 0
+                self.style.configure("ThinProgressBar.TProgressbar", background=self.fg_idle)
         self.root.after(1000, self.update_clock)
 
     def start_move(self, event):
@@ -517,7 +686,7 @@ class TransparentTimer:
         self.timer_window.geometry(f"+{x}+{y}")
 
     def apply_settings(self):
-        """Применяет настройки (шрифт, прозрачность, цвет фона)."""
+        """Применяет настройки (шрифт, прозрачность, цвет фона, цвета текста)."""
         if not hasattr(self, "timer_window"):
             return
         self.font_size = int(self.font_scale.get())
@@ -525,7 +694,14 @@ class TransparentTimer:
         self.bg_color = "white" if self.bg_var.get() == "Белый" else "black"
         self.timer_window.attributes("-alpha", self.opacity)
         self.timer_window.config(bg=self.bg_color)
-        self.timer_label.config(bg=self.bg_color, font=("Consolas", self.font_size, "bold"))
+        color = self.fg_positive if self.time_left > 0 else self.fg_negative if self.time_left < 0 else self.fg_idle
+        self.timer_label.config(
+            bg=self.bg_color,
+            font=(self.font_family, self.font_size, self.font_weight),
+            fg=color
+        )
+        if hasattr(self, "progress_bar"):
+            self.style.configure("ThinProgressBar.TProgressbar", background=color)
         self.timer_window.attributes("-transparentcolor", self.bg_color)
         self.font_value_label.config(text=str(self.font_size))
         self.opacity_value_label.config(text=f"{self.opacity:.2f}")
@@ -537,6 +713,7 @@ class TransparentTimer:
             minutes = int(self.minutes_entry.get())
             seconds = int(self.seconds_entry.get())
             self.time_left = minutes * 60 + seconds
+            self.initial_time = self.time_left  # Сохраняем начальное время
             self.update_num_plays()
         except ValueError:
             return
@@ -553,6 +730,7 @@ class TransparentTimer:
         """Останавливает таймер и сбрасывает время."""
         self.running = False
         self.time_left = 0
+        self.initial_time = 0
         self.signal_played = False
         self.update_label()
         self.show_current_time()
@@ -560,7 +738,10 @@ class TransparentTimer:
     def show_current_time(self):
         """Показывает текущее время в окне таймера."""
         now = time.strftime("%H:%M:%S")
-        self.timer_label.config(text=now, fg="gray")
+        self.timer_label.config(text=now, fg=self.fg_idle)
+        if hasattr(self, "progress_bar") and self.show_progress:
+            self.progress_bar["value"] = 0
+            self.style.configure("ThinProgressBar.TProgressbar", background=self.fg_idle)
 
     def choose_signal(self):
         """Открывает диалог для выбора аудиофайла."""
@@ -596,6 +777,7 @@ class TransparentTimer:
             self.time_left -= 1
         self.running = False
         self.time_left = 0
+        self.initial_time = 0
         self.root.after(0, self.update_clock)
 
     def update_label(self):
@@ -603,11 +785,15 @@ class TransparentTimer:
         self.root.after(0, lambda: self._update_label_safe())
 
     def _update_label_safe(self):
-        """Обновляет метку времени в окне таймера."""
+        """Обновляет метку времени и прогресс-бар в окне таймера."""
         minutes, seconds = divmod(abs(self.time_left), 60)
         sign = "-" if self.time_left < 0 else ""
-        color = "red" if self.time_left < 0 else "green"
+        color = self.fg_negative if self.time_left < 0 else self.fg_positive
         self.timer_label.config(text=f"{sign}{minutes:02d}:{seconds:02d}", fg=color)
+        if hasattr(self, "progress_bar") and self.show_progress and self.initial_time > 0:
+            progress = (self.time_left / self.initial_time) * 100 if self.time_left > 0 else 0
+            self.progress_bar["value"] = progress
+            self.style.configure("ThinProgressBar.TProgressbar", background=color)
 
     def update_num_plays(self):
         """Обновляет количество воспроизведений звука."""
@@ -628,7 +814,7 @@ class TransparentTimer:
 
 if __name__ == "__main__":
     """Запускает приложение и проверяет обновления."""
-    root = ttk.Window(themename="flatly")  # Инициализация с темой flatly
+    root = ttk.Window(themename="flatly")
     icon_path = os.path.join(BASE_DIR, "clock.ico")
     if os.path.exists(icon_path):
         root.iconbitmap(icon_path)
