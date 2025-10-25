@@ -226,7 +226,7 @@ class TransparentTimer:
 
         # Настройка стиля для тонкого прогресс-бара
         self.style = ttk.Style()
-        self.style.configure("ThinProgressBar.TProgressbar", thickness=5)
+        self.style.configure("Horizontal.ThinProgressBar.TProgressbar", thickness=5, background=self.fg_idle)
 
         # Загрузка настроек и применение темы
         self.load_settings()
@@ -270,7 +270,7 @@ class TransparentTimer:
                     self.fg_negative = data.get("fg_negative", "#FF0000")
                     self.fg_idle = data.get("fg_idle", "#808080")
                     self.show_clock = data.get("show_clock", True)
-                    self.show_progress = data.get("show_progress", False)
+                    self.show_progress = data.get("show_progress", True)
                     self.num_plays = data.get("num_plays", 1)
                     self.sound_enabled = data.get("sound_enabled", True)
                     self.theme_name = data.get("theme_name", "flatly")
@@ -405,7 +405,7 @@ class TransparentTimer:
         """Открывает модальное окно для выбора темы, шрифта и цветов."""
         theme_win = tk.Toplevel(self.root)
         theme_win.title("Настройки темы и шрифта")
-        theme_win.geometry("300x340")
+        theme_win.geometry("300x320")
         theme_win.resizable(False, False)
         theme_win.attributes("-topmost", True)
         theme_win.grab_set()
@@ -457,7 +457,7 @@ class TransparentTimer:
         """Открывает диалог выбора шрифта."""
         dialog = tk.Toplevel(self.root)
         dialog.title("Выбор шрифта")
-        dialog.geometry("300x240")
+        dialog.geometry("300x220")
         dialog.resizable(False, False)
         dialog.attributes("-topmost", True)
         dialog.grab_set()
@@ -487,7 +487,10 @@ class TransparentTimer:
             # Обновляем стиль прогресс-бара
             if hasattr(self, "progress_bar"):
                 color = self.fg_positive if self.time_left > 0 else self.fg_negative if self.time_left < 0 else self.fg_idle
-                self.style.configure("ThinProgressBar.TProgressbar", background=color)
+                try:
+                    self.style.configure("Horizontal.ThinProgressBar.TProgressbar", background=color)
+                except Exception:
+                    self.style.configure("Horizontal.TProgressbar", background=color)
         except Exception:
             self.theme_name = "flatly"
             self.root.style.theme_use(self.theme_name)
@@ -630,13 +633,22 @@ class TransparentTimer:
         )
         self.timer_label.pack(expand=True, fill="both")
 
-        self.progress_bar = ttk.Progressbar(
-            self.timer_window,
-            orient=tk.HORIZONTAL,
-            length=300,
-            mode="determinate",
-            style="ThinProgressBar.TProgressbar"
-        )
+        try:
+            self.progress_bar = ttk.Progressbar(
+                self.timer_window,
+                orient=tk.HORIZONTAL,
+                length=300,
+                mode="determinate",
+                style="Horizontal.ThinProgressBar.TProgressbar"
+            )
+        except Exception:
+            self.progress_bar = ttk.Progressbar(
+                self.timer_window,
+                orient=tk.HORIZONTAL,
+                length=300,
+                mode="determinate",
+                style="Horizontal.TProgressbar"
+            )
         if self.show_progress:
             self.progress_bar.pack(fill="x", padx=5, pady=2)
 
@@ -671,7 +683,10 @@ class TransparentTimer:
                 self.timer_label.config(text="00:00", fg=self.fg_idle)
             if hasattr(self, "progress_bar") and self.show_progress:
                 self.progress_bar["value"] = 0
-                self.style.configure("ThinProgressBar.TProgressbar", background=self.fg_idle)
+                try:
+                    self.style.configure("Horizontal.ThinProgressBar.TProgressbar", background=self.fg_idle)
+                except Exception:
+                    self.style.configure("Horizontal.TProgressbar", background=self.fg_idle)
         self.root.after(1000, self.update_clock)
 
     def start_move(self, event):
@@ -701,7 +716,10 @@ class TransparentTimer:
             fg=color
         )
         if hasattr(self, "progress_bar"):
-            self.style.configure("ThinProgressBar.TProgressbar", background=color)
+            try:
+                self.style.configure("Horizontal.ThinProgressBar.TProgressbar", background=color)
+            except Exception:
+                self.style.configure("Horizontal.TProgressbar", background=color)
         self.timer_window.attributes("-transparentcolor", self.bg_color)
         self.font_value_label.config(text=str(self.font_size))
         self.opacity_value_label.config(text=f"{self.opacity:.2f}")
@@ -741,7 +759,10 @@ class TransparentTimer:
         self.timer_label.config(text=now, fg=self.fg_idle)
         if hasattr(self, "progress_bar") and self.show_progress:
             self.progress_bar["value"] = 0
-            self.style.configure("ThinProgressBar.TProgressbar", background=self.fg_idle)
+            try:
+                self.style.configure("Horizontal.ThinProgressBar.TProgressbar", background=self.fg_idle)
+            except Exception:
+                self.style.configure("Horizontal.TProgressbar", background=self.fg_idle)
 
     def choose_signal(self):
         """Открывает диалог для выбора аудиофайла."""
@@ -793,7 +814,10 @@ class TransparentTimer:
         if hasattr(self, "progress_bar") and self.show_progress and self.initial_time > 0:
             progress = (self.time_left / self.initial_time) * 100 if self.time_left > 0 else 0
             self.progress_bar["value"] = progress
-            self.style.configure("ThinProgressBar.TProgressbar", background=color)
+            try:
+                self.style.configure("Horizontal.ThinProgressBar.TProgressbar", background=color)
+            except Exception:
+                self.style.configure("Horizontal.TProgressbar", background=color)
 
     def update_num_plays(self):
         """Обновляет количество воспроизведений звука."""
