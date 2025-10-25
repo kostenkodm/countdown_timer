@@ -111,11 +111,17 @@ def check_for_updates(parent):
 
             progress_var.set("Запуск установщика...")
             win.update()
+
+            # Запускаем установщик
             subprocess.Popen([temp_path], shell=True)
-            win.destroy()
+
+            # Закрываем окно безопасно из GUI-потока
+            win.after(100, win.destroy)
 
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось обновить:\n{e}")
+            # Тоже закрываем окно, чтобы не зависло
+            win.after(100, win.destroy)
 
     def start_update():
         threading.Thread(target=download_and_install, daemon=True).start()
