@@ -475,17 +475,17 @@ class TransparentTimer:
         self.preset_combo.grid(row=0, column=1, pady=3)
         preset_button_frame = ttk.Frame(preset_frame)
         preset_button_frame.grid(row=0, column=2, padx=10, pady=3)
-        ttk.Button(preset_button_frame, text="Сохранить", command=self.save_new_preset).pack(side="left", padx=5)
-        ttk.Button(preset_button_frame, text="Удалить", command=self.delete_preset, style="danger.TButton").pack(side="left", padx=5)
+        ttk.Button(preset_button_frame, text="Сохранить", command=self.save_new_preset).pack(side="left", padx=3)
+        ttk.Button(preset_button_frame, text="Удалить", command=self.delete_preset, style="danger.TButton").pack(side="left", padx=3)
 
         # Блок кнопок
         button_frame = ttk.Frame(main_frame, padding=5)
         button_frame.pack(fill="x", pady=5)
-        ttk.Button(button_frame, text="Старт", command=self.start_timer, width=10).pack(side="left", padx=10)
-        ttk.Button(button_frame, text="Стоп", command=self.stop_timer, width=10).pack(side="left", padx=10)
-        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal, width=10).pack(side="left", padx=10)
-        ttk.Button(button_frame, text="▶", command=self.play_sound, width=3).pack(side="left", padx=10)
-        ttk.Button(button_frame, text="Сброс поз.", command=self.reset_timer_position, width=10, style="danger.TButton").pack(side="left", padx=10)
+        ttk.Button(button_frame, text="Старт", command=self.start_timer, width=9).pack(side="left", padx=3)
+        ttk.Button(button_frame, text="Стоп", command=self.stop_timer, width=9).pack(side="left", padx=3)
+        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal, width=9).pack(side="left", padx=3)
+        ttk.Button(button_frame, text="▶", command=self.play_sound, width=2).pack(side="left", padx=3)
+        ttk.Button(button_frame, text="Сброс поз.", command=self.reset_timer_position, width=11, style="danger.TButton").pack(side="left", padx=3)
 
         # Блок чекбоксов
         bottom_frame = ttk.Frame(main_frame)
