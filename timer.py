@@ -36,7 +36,6 @@ PRESETS_PATH = os.path.join(CONFIG_DIR, "presets.json")
 
 # === Проверка обновлений ===
 
-
 def check_for_updates(parent):
     """Проверяет наличие обновлений и запускает установщик."""
     GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
@@ -112,16 +111,16 @@ def check_for_updates(parent):
             progress_var.set("Запуск установщика...")
             win.update()
 
-            # Запускаем установщик
+            # Запускаем установщик и закрываем все окна
             subprocess.Popen([temp_path], shell=True)
-
-            # Закрываем окно безопасно из GUI-потока
-            win.after(100, win.destroy)
+            parent.destroy()  # Закрываем главное окно
+            if hasattr(parent, "timer_window"):
+                parent.timer_window.destroy()  # Закрываем окно таймера
+            win.destroy()
 
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось обновить:\n{e}")
-            # Тоже закрываем окно, чтобы не зависло
-            win.after(100, win.destroy)
+            win.destroy()
 
     def start_update():
         threading.Thread(target=download_and_install, daemon=True).start()
@@ -129,9 +128,6 @@ def check_for_updates(parent):
     action_text = "Обновить" if update_available else "Переустановить"
     tk.Button(win, text=action_text, width=20, command=start_update).pack(pady=10)
     tk.Button(win, text="Отмена", width=10, command=win.destroy).pack(pady=5)
-
-
-
 
 class InfoDialog(tk.Toplevel):
     """Окно с информацией о приложении."""
@@ -145,7 +141,7 @@ class InfoDialog(tk.Toplevel):
         self.grab_set()
 
         self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_reqwidth()) // 2
+        x = parent.winfo_x() + (parent.winfo_width() - self.winfo_reqheight()) // 2
         y = parent.winfo_y() + (parent.winfo_height() - self.winfo_reqheight()) // 2
         self.geometry(f"+{x}+{y}")
 
@@ -160,15 +156,15 @@ class TransparentTimer:
     def __init__(self, root):
         self.root = root
         self.root.title(f"Управление таймером - {VERSION}")
-        self.root.attributes("-topmost", True)  # Окно настроек всегда поверх остальных
+        self.root.attributes("-topmost", True)
         self.settings_path = os.path.join(CONFIG_DIR, "settings.json")
         self.position_path = os.path.join(CONFIG_DIR, "position.json")
         self.show_clock = True
-        self.show_progress = True  # Показывать прогресс-бар
+        self.show_progress = True
 
         # Инициализация переменных
         self.time_left = 0
-        self.initial_time = 0  # Начальное время для прогресс-бара
+        self.initial_time = 0
         self.running = False
         self.signal_played = False
         self.signal_file = os.path.join(BASE_DIR, "alarm.wav")
@@ -177,26 +173,33 @@ class TransparentTimer:
         self.font_weight = "bold"
         self.bg_color = "white"
         self.opacity = 0.8
-        self.fg_positive = "#00FF00"  # Цвет текста для времени > 0
-        self.fg_negative = "#FF0000"  # Цвет текста для времени < 0
-        self.fg_idle = "#808080"      # Цвет текста для состояния покоя
+        self.fg_positive = "#00FF00"
+        self.fg_negative = "#FF0000"
+        self.fg_idle = "#808080"
         self.timer_pos = None
         self.num_plays = 1
         self.sound_enabled = True
         self.presets = {}
         self.theme_name = "flatly"
 
-        # Настройка стиля для тонкого прогресс-бара
-        self.style = ttk.Style()
-        self.style.configure("Horizontal.ThinProgressBar.TProgressbar", thickness=5, background=self.fg_idle)
+        # Скрываем нативный заголовок и создаём кастомный
+        self.root.overrideredirect(True)
+        self.create_custom_title_bar()
 
-        # Загрузка настроек и применение темы
+        # Настройка стиля
+        self.style = ttk.Style()
+        self.style.configure("Custom.TButton", background="#F0F0F0", foreground="#333333")
+        self.style.configure("Custom.TButtonDark", background="#2F2F2F", foreground="#FFFFFF")
+
+        # Загрузка настроек
         self.load_settings()
         try:
             self.root.style.theme_use(self.theme_name)
+            self.update_title_bar_color()
         except Exception:
             self.theme_name = "flatly"
             self.root.style.theme_use(self.theme_name)
+            self.update_title_bar_color()
         self.load_position()
         self.load_presets()
         self.create_main_window()
@@ -204,164 +207,67 @@ class TransparentTimer:
         self.apply_settings()
         self.update_clock()
 
-    def show_info(self):
-        """Показывает окно с информацией о приложении."""
-        try:
-            import requests
-            GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
-            RAW_VERSION_URL = f"{GITHUB_REPO}/raw/main/version.json"
-            r = requests.get(RAW_VERSION_URL, timeout=5)
-            latest_version = r.json().get("version", "неизвестно") if r.status_code == 200 else "неизвестно"
-        except Exception:
-            latest_version = "неизвестно"
-        InfoDialog(self.root, current_version=VERSION, latest_version=latest_version)
+        # Привязка перемещения ко всему окну
+        self.root.bind("<ButtonPress-1>", self.start_move)
+        self.root.bind("<B1-Motion>", self.do_move)
+        self.root.bind("<ButtonRelease-1>", self.stop_move)
 
-    def load_settings(self):
-        """Загружает настройки из settings.json."""
-        if os.path.exists(self.settings_path):
-            try:
-                with open(self.settings_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.signal_file = data.get("signal_file", self.signal_file)
-                    self.font_size = data.get("font_size", self.font_size)
-                    self.font_family = data.get("font_family", "Consolas")
-                    self.font_weight = data.get("font_weight", "bold")
-                    self.bg_color = data.get("bg_color", self.bg_color)
-                    self.opacity = data.get("opacity", self.opacity)
-                    self.fg_positive = data.get("fg_positive", "#00FF00")
-                    self.fg_negative = data.get("fg_negative", "#FF0000")
-                    self.fg_idle = data.get("fg_idle", "#808080")
-                    self.show_clock = data.get("show_clock", True)
-                    self.show_progress = data.get("show_progress", True)
-                    self.num_plays = data.get("num_plays", 1)
-                    self.sound_enabled = data.get("sound_enabled", True)
-                    self.theme_name = data.get("theme_name", "flatly")
-            except Exception:
-                pass
+    def create_custom_title_bar(self):
+        """Создаёт кастомную панель заголовка с кнопками меню."""
+        self.title_bar = tk.Frame(self.root, bg="#F0F0F0", height=30)
+        self.title_bar.pack(fill="x")
 
-    def save_settings(self):
-        """Сохраняет настройки в settings.json."""
-        data = {
-            "signal_file": self.signal_file,
-            "font_size": self.font_size,
-            "font_family": self.font_family,
-            "font_weight": self.font_weight,
-            "bg_color": self.bg_color,
-            "opacity": self.opacity,
-            "fg_positive": self.fg_positive,
-            "fg_negative": self.fg_negative,
-            "fg_idle": self.fg_idle,
-            "show_clock": self.show_clock,
-            "show_progress": self.show_progress,
-            "num_plays": self.num_plays,
-            "sound_enabled": self.sound_enabled,
-            "theme_name": self.theme_name,
-        }
-        with open(self.settings_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        # Кнопка "Кастомизация"
+        self.customize_btn = ttk.Button(self.title_bar, text="Тема", style="Custom.TButton", command=self.open_theme_selection, width=5)
+        self.customize_btn.pack(side="left", padx=5, pady=5)
 
-    def load_position(self):
-        """Загружает позицию таймера из position.json."""
-        if os.path.exists(self.position_path):
-            try:
-                with open(self.position_path, "r", encoding="utf-8") as f:
-                    self.timer_pos = json.load(f)
-            except Exception:
-                self.timer_pos = None
+        # Кнопка "Обновления"
+        self.update_btn = ttk.Button(self.title_bar, text="Обновить", style="Custom.TButton", command=lambda: check_for_updates(self.root), width=5)
+        self.update_btn.pack(side="left", padx=5, pady=5)
 
-    def save_position(self):
-        """Сохраняет позицию таймера в position.json."""
-        try:
-            x = self.timer_window.winfo_x()
-            y = self.timer_window.winfo_y()
-            data = {"x": x, "y": y}
-            with open(self.position_path, "w", encoding="utf-8") as f:
-                json.dump(data, f)
-        except Exception:
-            pass
+        # Кнопка "Справка"
+        self.help_btn = ttk.Button(self.title_bar, text="?", style="Custom.TButton", command=self.show_info, width=2)
+        self.help_btn.pack(side="left", padx=5, pady=5)
 
-    def reset_timer_position(self):
-        """Сбрасывает позицию окна таймера в центр экрана."""
-        screen_w = self.timer_window.winfo_screenwidth()
-        screen_h = self.timer_window.winfo_screenheight()
-        x = screen_w // 2 - 150  # Центрируем для ширины 300
-        y = screen_h // 2 - 40   # Центрируем для высоты 80
-        self.timer_window.geometry(f"300x80+{x}+{y}")
-        self.timer_pos = {"x": x, "y": y}
-        self.save_position()
+        # Метка с названием
+        self.title_label = tk.Label(self.title_bar, text=f"Управление таймером - {VERSION}", bg="#F0F0F0", fg="#333333", font=("Segoe UI", 10))
+        self.title_label.pack(side="left", padx=10, pady=5)
 
-    def load_presets(self):
-        """Загружает пресеты из presets.json или использует дефолтные."""
-        if os.path.exists(PRESETS_PATH):
-            try:
-                with open(PRESETS_PATH, "r", encoding="utf-8") as f:
-                    self.presets = json.load(f)
-            except Exception:
-                self.presets = self.get_default_presets()
+        # Кнопка закрытия
+        self.close_button = tk.Button(self.title_bar, text="✕", command=self.root.quit, bg="#F0F0F0", fg="#FF0000", font=("Segoe UI", 10), bd=0, padx=5, pady=2)
+        self.close_button.pack(side="right", padx=5)
+
+    def start_move(self, event):
+        """Начинает перемещение окна."""
+        self._drag_x = event.x
+        self._drag_y = event.y
+
+    def do_move(self, event):
+        """Перемещает окно."""
+        x = self.root.winfo_x() + (event.x - self._drag_x)
+        y = self.root.winfo_y() + (event.y - self._drag_y)
+        self.root.geometry(f"+{x}+{y}")
+
+    def stop_move(self, event):
+        """Останавливает перемещение окна."""
+        pass  # Можно оставить пустым, так как освобождение кнопки не требует действий
+
+    def update_title_bar_color(self):
+        """Обновляет цвет кастомной панели заголовка в зависимости от темы."""
+        if self.theme_name in ["darkly", "cyborg", "superhero", "vapor"]:
+            color = "#2F2F2F"
+            fg_color = "#FFFFFF"
+            self.style.configure("Custom.TButton", background=color, foreground=fg_color)
+            self.style.configure("Custom.TButtonDark", background=color, foreground=fg_color)
         else:
-            self.presets = self.get_default_presets()
+            color = "#F0F0F0"
+            fg_color = "#333333"
+            self.style.configure("Custom.TButton", background=color, foreground=fg_color)
+            self.style.configure("Custom.TButtonDark", background=color, foreground="#FF0000")
 
-    def save_presets(self):
-        """Сохраняет пресеты в presets.json."""
-        with open(PRESETS_PATH, "w", encoding="utf-8") as f:
-            json.dump(self.presets, f, indent=2, ensure_ascii=False)
-
-    def get_default_presets(self):
-        """Возвращает стандартные пресеты."""
-        return {
-            "Ларин": {"minutes": 5, "seconds": 0, "font_size": 33, "opacity": 0.8, "bg_color": "white", "num_plays": 1, "sound_enabled": True},
-            "Пегов": {"minutes": 3, "seconds": 0, "font_size": 33, "opacity": 0.8, "bg_color": "white", "num_plays": 1, "sound_enabled": True}
-        }
-
-    def apply_preset(self, event=None):
-        """Применяет выбранный пресет."""
-        preset_name = self.preset_var.get()
-        if preset_name in self.presets:
-            preset = self.presets[preset_name]
-            self.minutes_entry.delete(0, tk.END)
-            self.minutes_entry.insert(0, str(preset.get("minutes", 1)))
-            self.seconds_entry.delete(0, tk.END)
-            self.seconds_entry.insert(0, str(preset.get("seconds", 0)))
-            self.font_scale.set(preset.get("font_size", 33))
-            self.opacity_scale.set(preset.get("opacity", 0.8))
-            self.bg_var.set("Белый" if preset.get("bg_color", "white") == "white" else "Чёрный")
-            self.num_plays_entry.delete(0, tk.END)
-            self.num_plays_entry.insert(0, str(preset.get("num_plays", 1)))
-            self.sound_var.set(preset.get("sound_enabled", True))
-            self.apply_settings()
-
-    def save_new_preset(self):
-        """Сохраняет новый пресет."""
-        name = simpledialog.askstring("Сохранить пресет", "Введите имя пресета:")
-        if name:
-            preset = {
-                "minutes": int(self.minutes_entry.get() or 0),
-                "seconds": int(self.seconds_entry.get() or 0),
-                "font_size": self.font_size,
-                "opacity": self.opacity,
-                "bg_color": self.bg_color,
-                "num_plays": self.num_plays,
-                "sound_enabled": self.sound_enabled
-            }
-            self.presets[name] = preset
-            self.save_presets()
-            self.update_preset_menu()
-
-    def delete_preset(self):
-        """Удаляет выбранный пресет."""
-        preset_name = self.preset_var.get()
-        if preset_name in self.presets:
-            del self.presets[preset_name]
-            self.save_presets()
-            self.update_preset_menu()
-
-    def update_preset_menu(self):
-        """Обновляет выпадающее меню пресетов."""
-        self.preset_combo['values'] = list(self.presets.keys())
-        if self.presets:
-            self.preset_var.set(list(self.presets.keys())[0])
-        else:
-            self.preset_var.set("")
+        self.title_bar.config(bg=color)
+        self.title_label.config(bg=color, fg=fg_color)
+        self.close_button.config(bg=color, fg="#FF0000" if color == "#F0F0F0" else fg_color)
 
     def open_theme_selection(self):
         """Открывает модальное окно для выбора темы, шрифта и цветов."""
@@ -420,7 +326,7 @@ class TransparentTimer:
         """Открывает диалог выбора цвета для текста таймера."""
         initial_color = getattr(self, f"fg_{color_type}")
         color = colorchooser.askcolor(initialcolor=initial_color, title=f"Выберите цвет ({color_type})")
-        if color[1]:  # color[1] содержит HEX-значение
+        if color[1]:
             if color_type == "positive":
                 self.fg_positive = color[1]
             elif color_type == "negative":
@@ -452,7 +358,7 @@ class TransparentTimer:
         dialog.grab_set()
 
         ttk.Label(dialog, text="Семейство шрифта:").pack(pady=5)
-        font_families = sorted(list(tkfont.families()))  # Сортировка для удобства
+        font_families = sorted(list(tkfont.families()))
         font_family_var = tk.StringVar(value=self.font_family)
         font_combo = ttk.Combobox(dialog, textvariable=font_family_var, values=font_families, state="readonly")
         font_combo.pack(pady=5, fill="x", padx=10)
@@ -469,20 +375,21 @@ class TransparentTimer:
         ttk.Button(dialog, text="Применить", command=apply_font).pack(pady=10)
 
     def change_theme(self, new_theme):
-        """Меняет тему на лету и сохраняет."""
+        """Меняет тему на лету и сохраняет, обновляя цвет заголовка."""
         self.theme_name = new_theme
         try:
             self.root.style.theme_use(self.theme_name)
-            # Обновляем стиль прогресс-бара
             if hasattr(self, "progress_bar"):
                 color = self.fg_positive if self.time_left > 0 else self.fg_negative if self.time_left < 0 else self.fg_idle
                 try:
                     self.style.configure("Horizontal.ThinProgressBar.TProgressbar", background=color)
                 except Exception:
                     self.style.configure("Horizontal.TProgressbar", background=color)
+            self.update_title_bar_color()
         except Exception:
             self.theme_name = "flatly"
             self.root.style.theme_use(self.theme_name)
+            self.update_title_bar_color()
         self.apply_settings()
         self.save_settings()
 
@@ -504,24 +411,9 @@ class TransparentTimer:
 
     def create_main_window(self):
         """Создаёт главное окно с современной темой и уменьшенными вертикальными отступами."""
-        # Меню
-        menubar = tk.Menu(self.root)
-        settings_menu = tk.Menu(menubar, tearoff=0)
-        settings_menu.add_command(label="Выбор темы и шрифта", command=self.open_theme_selection)
-        settings_menu.add_separator()
-        settings_menu.add_command(label="Проверить обновление", command=lambda: check_for_updates(self.root))
-        settings_menu.add_separator()
-        settings_menu.add_command(label="Выход", command=self.root.quit)
-        menubar.add_cascade(label="Настройки", menu=settings_menu)
-
-        help_menu = tk.Menu(menubar, tearoff=0)
-        help_menu.add_command(label="О программе", command=self.show_info)
-        menubar.add_cascade(label="Справка", menu=help_menu)
-        self.root.config(menu=menubar)
-
-        # Основной фрейм
+        # Основной фрейм (сдвигаем вниз из-за кастомного заголовка)
         main_frame = ttk.Frame(self.root, padding=8)
-        main_frame.pack(fill="both", expand=True)
+        main_frame.pack(fill="both", expand=True, pady=(30, 0))  # Отступ сверху для заголовка
 
         # Блок времени
         time_frame = ttk.LabelFrame(main_frame, text="Время", padding=5)
@@ -643,9 +535,20 @@ class TransparentTimer:
 
         self.timer_window.attributes("-transparentcolor", self.bg_color)
 
-        self.timer_label.bind("<ButtonPress-1>", self.start_move)
-        self.timer_label.bind("<B1-Motion>", self.do_move)
+        self.timer_label.bind("<ButtonPress-1>", self.start_move_timer)
+        self.timer_label.bind("<B1-Motion>", self.do_move_timer)
         self.timer_label.bind("<ButtonRelease-1>", lambda e: self.save_position())
+
+    def start_move_timer(self, event):
+        """Начинает перемещение окна таймера."""
+        self._drag_x = event.x
+        self._drag_y = event.y
+
+    def do_move_timer(self, event):
+        """Перемещает окно таймера."""
+        x = self.timer_window.winfo_x() + (event.x - self._drag_x)
+        y = self.timer_window.winfo_y() + (event.y - self._drag_y)
+        self.timer_window.geometry(f"+{x}+{y}")
 
     def toggle_clock_mode(self):
         """Включает/выключает показ текущего времени."""
@@ -678,17 +581,6 @@ class TransparentTimer:
                     self.style.configure("Horizontal.TProgressbar", background=self.fg_idle)
         self.root.after(1000, self.update_clock)
 
-    def start_move(self, event):
-        """Начинает перемещение окна таймера."""
-        self._drag_x = event.x
-        self._drag_y = event.y
-
-    def do_move(self, event):
-        """Перемещает окно таймера."""
-        x = self.timer_window.winfo_x() + (event.x - self._drag_x)
-        y = self.timer_window.winfo_y() + (event.y - self._drag_y)
-        self.timer_window.geometry(f"+{x}+{y}")
-
     def apply_settings(self):
         """Применяет настройки (шрифт, прозрачность, цвет фона, цвета текста)."""
         if not hasattr(self, "timer_window"):
@@ -720,7 +612,7 @@ class TransparentTimer:
             minutes = int(self.minutes_entry.get())
             seconds = int(self.seconds_entry.get())
             self.time_left = minutes * 60 + seconds
-            self.initial_time = self.time_left  # Сохраняем начальное время
+            self.initial_time = self.time_left
             self.update_num_plays()
         except ValueError:
             return
@@ -825,14 +717,172 @@ class TransparentTimer:
         self.sound_enabled = self.sound_var.get()
         self.save_settings()
 
+    def load_settings(self):
+        """Загружает настройки из settings.json."""
+        if os.path.exists(self.settings_path):
+            try:
+                with open(self.settings_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.signal_file = data.get("signal_file", self.signal_file)
+                    self.font_size = data.get("font_size", self.font_size)
+                    self.font_family = data.get("font_family", "Consolas")
+                    self.font_weight = data.get("font_weight", "bold")
+                    self.bg_color = data.get("bg_color", self.bg_color)
+                    self.opacity = data.get("opacity", self.opacity)
+                    self.fg_positive = data.get("fg_positive", "#00FF00")
+                    self.fg_negative = data.get("fg_negative", "#FF0000")
+                    self.fg_idle = data.get("fg_idle", "#808080")
+                    self.show_clock = data.get("show_clock", True)
+                    self.show_progress = data.get("show_progress", True)
+                    self.num_plays = data.get("num_plays", 1)
+                    self.sound_enabled = data.get("sound_enabled", True)
+                    self.theme_name = data.get("theme_name", "flatly")
+            except Exception:
+                pass
+
+    def save_settings(self):
+        """Сохраняет настройки в settings.json."""
+        data = {
+            "signal_file": self.signal_file,
+            "font_size": self.font_size,
+            "font_family": self.font_family,
+            "font_weight": self.font_weight,
+            "bg_color": self.bg_color,
+            "opacity": self.opacity,
+            "fg_positive": self.fg_positive,
+            "fg_negative": self.fg_negative,
+            "fg_idle": self.fg_idle,
+            "show_clock": self.show_clock,
+            "show_progress": self.show_progress,
+            "num_plays": self.num_plays,
+            "sound_enabled": self.sound_enabled,
+            "theme_name": self.theme_name,
+        }
+        with open(self.settings_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    def load_position(self):
+        """Загружает позицию таймера из position.json."""
+        if os.path.exists(self.position_path):
+            try:
+                with open(self.position_path, "r", encoding="utf-8") as f:
+                    self.timer_pos = json.load(f)
+            except Exception:
+                self.timer_pos = None
+
+    def save_position(self):
+        """Сохраняет позицию таймера в position.json."""
+        try:
+            x = self.timer_window.winfo_x()
+            y = self.timer_window.winfo_y()
+            data = {"x": x, "y": y}
+            with open(self.position_path, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+
+    def reset_timer_position(self):
+        """Сбрасывает позицию окна таймера в центр экрана."""
+        screen_w = self.timer_window.winfo_screenwidth()
+        screen_h = self.timer_window.winfo_screenheight()
+        x = screen_w // 2 - 150
+        y = screen_h // 2 - 40
+        self.timer_window.geometry(f"300x80+{x}+{y}")
+        self.timer_pos = {"x": x, "y": y}
+        self.save_position()
+
+    def load_presets(self):
+        """Загружает пресеты из presets.json или использует дефолтные."""
+        if os.path.exists(PRESETS_PATH):
+            try:
+                with open(PRESETS_PATH, "r", encoding="utf-8") as f:
+                    self.presets = json.load(f)
+            except Exception:
+                self.presets = self.get_default_presets()
+        else:
+            self.presets = self.get_default_presets()
+
+    def save_presets(self):
+        """Сохраняет пресеты в presets.json."""
+        with open(PRESETS_PATH, "w", encoding="utf-8") as f:
+            json.dump(self.presets, f, indent=2, ensure_ascii=False)
+
+    def get_default_presets(self):
+        """Возвращает стандартные пресеты."""
+        return {
+            "Ларин": {"minutes": 5, "seconds": 0, "font_size": 33, "opacity": 0.8, "bg_color": "white", "num_plays": 1, "sound_enabled": True},
+            "Пегов": {"minutes": 3, "seconds": 0, "font_size": 33, "opacity": 0.8, "bg_color": "white", "num_plays": 1, "sound_enabled": True}
+        }
+
+    def apply_preset(self, event=None):
+        """Применяет выбранный пресет."""
+        preset_name = self.preset_var.get()
+        if preset_name in self.presets:
+            preset = self.presets[preset_name]
+            self.minutes_entry.delete(0, tk.END)
+            self.minutes_entry.insert(0, str(preset.get("minutes", 1)))
+            self.seconds_entry.delete(0, tk.END)
+            self.seconds_entry.insert(0, str(preset.get("seconds", 0)))
+            self.font_scale.set(preset.get("font_size", 33))
+            self.opacity_scale.set(preset.get("opacity", 0.8))
+            self.bg_var.set("Белый" if preset.get("bg_color", "white") == "white" else "Чёрный")
+            self.num_plays_entry.delete(0, tk.END)
+            self.num_plays_entry.insert(0, str(preset.get("num_plays", 1)))
+            self.sound_var.set(preset.get("sound_enabled", True))
+            self.apply_settings()
+
+    def save_new_preset(self):
+        """Сохраняет новый пресет."""
+        name = simpledialog.askstring("Сохранить пресет", "Введите имя пресета:")
+        if name:
+            preset = {
+                "minutes": int(self.minutes_entry.get() or 0),
+                "seconds": int(self.seconds_entry.get() or 0),
+                "font_size": self.font_size,
+                "opacity": self.opacity,
+                "bg_color": self.bg_color,
+                "num_plays": self.num_plays,
+                "sound_enabled": self.sound_enabled
+            }
+            self.presets[name] = preset
+            self.save_presets()
+            self.update_preset_menu()
+
+    def delete_preset(self):
+        """Удаляет выбранный пресет."""
+        preset_name = self.preset_var.get()
+        if preset_name in self.presets:
+            del self.presets[preset_name]
+            self.save_presets()
+            self.update_preset_menu()
+
+    def update_preset_menu(self):
+        """Обновляет выпадающее меню пресетов."""
+        self.preset_combo['values'] = list(self.presets.keys())
+        if self.presets:
+            self.preset_var.set(list(self.presets.keys())[0])
+        else:
+            self.preset_var.set("")
+
+    def show_info(self):
+        """Показывает окно с информацией о приложении."""
+        try:
+            import requests
+            GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
+            RAW_VERSION_URL = f"{GITHUB_REPO}/raw/main/version.json"
+            r = requests.get(RAW_VERSION_URL, timeout=5)
+            latest_version = r.json().get("version", "неизвестно") if r.status_code == 200 else "неизвестно"
+        except Exception:
+            latest_version = "неизвестно"
+        InfoDialog(self.root, current_version=VERSION, latest_version=latest_version)
+
 if __name__ == "__main__":
-    """Запускает приложение и проверяет обновления."""
+    """Запускает приложение."""
     root = ttk.Window(themename="flatly")
     icon_path = os.path.join(BASE_DIR, "clock.ico")
     if os.path.exists(icon_path):
         root.iconbitmap(icon_path)
     app = TransparentTimer(root)
-    # root.after(2000, lambda: threading.Thread(target=lambda: check_for_updates(root), daemon=True).start())
     root.mainloop()
-    
+
 #pyinstaller --onefile --windowed --icon=clock.ico --add-data "alarm.wav;." --add-data "version.json;." timer.py
