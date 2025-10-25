@@ -207,7 +207,7 @@ class TransparentTimer:
         self.apply_settings()
         self.update_clock()
 
-        # Привязка перемещения ко всему окну
+        # Привязка перемещения только к фрейму, исключая слайдеры
         self.root.bind("<ButtonPress-1>", self.start_move)
         self.root.bind("<B1-Motion>", self.do_move)
         self.root.bind("<ButtonRelease-1>", self.stop_move)
@@ -222,7 +222,7 @@ class TransparentTimer:
         self.customize_btn.pack(side="left", padx=5, pady=5)
 
         # Кнопка "Обновления"
-        self.update_btn = ttk.Button(self.title_bar, text="Обновить", style="Custom.TButton", command=lambda: check_for_updates(self.root), width=5)
+        self.update_btn = ttk.Button(self.title_bar, text="Обвновить", style="Custom.TButton", command=lambda: check_for_updates(self.root), width=5)
         self.update_btn.pack(side="left", padx=5, pady=5)
 
         # Кнопка "Справка"
@@ -238,19 +238,25 @@ class TransparentTimer:
         self.close_button.pack(side="right", padx=5)
 
     def start_move(self, event):
-        """Начинает перемещение окна."""
-        self._drag_x = event.x
-        self._drag_y = event.y
+        """Начинает перемещение окна, если клик не на слайдере."""
+        # Проверяем, не кликнули ли на слайдеры
+        widget = self.root.winfo_containing(event.x_root, event.y_root)
+        if widget not in [self.font_scale, self.opacity_scale]:
+            self._drag_x = event.x
+            self._drag_y = event.y
 
     def do_move(self, event):
-        """Перемещает окно."""
-        x = self.root.winfo_x() + (event.x - self._drag_x)
-        y = self.root.winfo_y() + (event.y - self._drag_y)
-        self.root.geometry(f"+{x}+{y}")
+        """Перемещает окно, если перемещение начато."""
+        if hasattr(self, '_drag_x'):
+            x = self.root.winfo_x() + (event.x - self._drag_x)
+            y = self.root.winfo_y() + (event.y - self._drag_y)
+            self.root.geometry(f"+{x}+{y}")
 
     def stop_move(self, event):
         """Останавливает перемещение окна."""
-        pass  # Можно оставить пустым, так как освобождение кнопки не требует действий
+        if hasattr(self, '_drag_x'):
+            del self._drag_x
+            del self._drag_y
 
     def update_title_bar_color(self):
         """Обновляет цвет кастомной панели заголовка в зависимости от темы."""
@@ -849,7 +855,7 @@ class TransparentTimer:
             self.update_preset_menu()
 
     def delete_preset(self):
-        """Удаляет выбранный пресет."""
+        """Удаляет выбранный пресet."""
         preset_name = self.preset_var.get()
         if preset_name in self.presets:
             del self.presets[preset_name]
