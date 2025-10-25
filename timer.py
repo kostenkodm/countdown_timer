@@ -207,7 +207,7 @@ class TransparentTimer:
         self.apply_settings()
         self.update_clock()
 
-        # Привязка перемещения только к фрейму, исключая слайдеры
+        # Привязка перемещения только к фрейму, исключая слайдеры и поля ввода
         self.root.bind("<ButtonPress-1>", self.start_move)
         self.root.bind("<B1-Motion>", self.do_move)
         self.root.bind("<ButtonRelease-1>", self.stop_move)
@@ -222,7 +222,7 @@ class TransparentTimer:
         self.customize_btn.pack(side="left", padx=5, pady=5)
 
         # Кнопка "Обновления"
-        self.update_btn = ttk.Button(self.title_bar, text="Обвновить", style="Custom.TButton", command=lambda: check_for_updates(self.root), width=5)
+        self.update_btn = ttk.Button(self.title_bar, text="Обновить", style="Custom.TButton", command=lambda: check_for_updates(self.root), width=5)
         self.update_btn.pack(side="left", padx=5, pady=5)
 
         # Кнопка "Справка"
@@ -238,10 +238,10 @@ class TransparentTimer:
         self.close_button.pack(side="right", padx=5)
 
     def start_move(self, event):
-        """Начинает перемещение окна, если клик не на слайдере."""
-        # Проверяем, не кликнули ли на слайдеры
+        """Начинает перемещение окна, если клик не на слайдере или поле ввода."""
+        # Проверяем, не кликнули ли на слайдеры или поля ввода
         widget = self.root.winfo_containing(event.x_root, event.y_root)
-        if widget not in [self.font_scale, self.opacity_scale]:
+        if widget not in [self.font_scale, self.opacity_scale, self.minutes_entry, self.seconds_entry, self.num_plays_entry]:
             self._drag_x = event.x
             self._drag_y = event.y
 
