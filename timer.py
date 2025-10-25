@@ -3,7 +3,7 @@ from tkinter import ttk, filedialog, messagebox, simpledialog, colorchooser
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 import tkinter.font as tkfont
-import time, os, sys, json, hashlib, requests, zipfile, io, subprocess, threading, shutil
+import time, os, sys, json, hashlib, requests, zipfile, io, subprocess, threading, shutil, tempfile
 import pygame
 
 # Инициализация Pygame для воспроизведения звука
@@ -36,140 +36,96 @@ PRESETS_PATH = os.path.join(CONFIG_DIR, "presets.json")
 
 # === Проверка обновлений ===
 
-def check_for_updates(parent):
-    """Проверяет наличие обновлений на GitHub, предлагает установить с прогрессом и проверкой хеша."""
-    GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
-    VERSION_FILE = os.path.join(BASE_DIR, "version.json")
-    RELEASE_URL = f"{GITHUB_REPO}/releases/latest/download/timer.zip"
-    HASH_URL = f"{GITHUB_REPO}/releases/latest/download/sha256sum.txt"
-    RAW_VERSION_URL = f"{GITHUB_REPO}/raw/main/version.json"
 
+def check_for_updates(parent):
+    """Проверяет наличие обновлений и запускает установщик."""
+    GITHUB_REPO = "https://github.com/kostenkodm/countdown_timer"
+    VERSION_FILE = os.path.join(os.path.dirname(__file__), "version.json")
+    RAW_VERSION_URL = f"{GITHUB_REPO}/raw/main/version.json"
+    RELEASE_URL = f"{GITHUB_REPO}/releases/latest/download/TransparentTimerSetup.exe"
+
+    # --- Версии ---
     def get_local_version():
-        """Получает локальную версию из version.json."""
         try:
             with open(VERSION_FILE, encoding="utf-8") as f:
-                data = json.load(f)
-                return data.get("version", "0.0.0")
+                return json.load(f).get("version", "0.0.0")
         except Exception:
             return "0.0.0"
 
     def get_remote_version():
-        """Получает удалённую версию из GitHub."""
         try:
             r = requests.get(RAW_VERSION_URL, timeout=5)
             if r.status_code == 200:
-                data = r.json()
-                return data.get("version", "0.0.0")
+                return r.json().get("version", "0.0.0")
         except Exception:
-            return "0.0.0"
+            pass
+        return "0.0.0"
 
-    def is_newer(remote, local):
-        """Сравнивает версии, возвращает True, если удалённая новее."""
+    def is_newer(v_remote, v_local):
         try:
-            return tuple(map(int, remote.split("."))) > tuple(map(int, local.split(".")))
+            return tuple(map(int, v_remote.split("."))) > tuple(map(int, v_local.split(".")))
         except Exception:
             return False
 
-    def compute_sha256(file_path):
-        """Вычисляет SHA256-хеш файла."""
-        sha256 = hashlib.sha256()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                sha256.update(chunk)
-        return sha256.hexdigest()
-
-    def download_and_update():
-        """Скачивает, проверяет и устанавливает обновление."""
-        try:
-            # Получаем хеш
-            r_hash = requests.get(HASH_URL, timeout=5)
-            if r_hash.status_code != 200:
-                messagebox.showerror("Ошибка", "Не удалось получить хеш обновления.")
-                return
-            expected_hash = r_hash.text.strip().split()[0]
-
-            # Создаём временную папку
-            temp_dir = os.path.join(CONFIG_DIR, "temp_update")
-            os.makedirs(temp_dir, exist_ok=True)
-            zip_path = os.path.join(temp_dir, "timer.zip")
-
-            # Загрузка с прогрессом
-            r = requests.get(RELEASE_URL, stream=True, timeout=15)
-            total_size = int(r.headers.get('content-length', 0))
-            downloaded = 0
-            with open(zip_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        progress = (downloaded / total_size) * 100
-                        progress_var.set(f"Загрузка: {progress:.1f}%")
-                        parent.update()
-
-            # Проверка хеша
-            actual_hash = compute_sha256(zip_path)
-            if actual_hash != expected_hash:
-                messagebox.showerror("Ошибка", "Хеш-сумма не совпадает, обновление повреждено.")
-                return
-
-            # Резервное копирование
-            backup_dir = os.path.join(CONFIG_DIR, "backup")
-            os.makedirs(backup_dir, exist_ok=True)
-            current_exe = os.path.join(BASE_DIR, "timer.exe")
-            if os.path.exists(current_exe):
-                shutil.copy2(current_exe, os.path.join(backup_dir, f"timer_backup_{VERSION}.exe"))
-
-            # Распаковка
-            with zipfile.ZipFile(zip_path, "r") as z:
-                z.extractall(BASE_DIR)
-
-            # Очистка
-            shutil.rmtree(temp_dir, ignore_errors=True)
-
-            # Перезапуск
-            messagebox.showinfo("Успех", "Обновление установлено. Приложение будет перезапущено.")
-            subprocess.Popen([os.path.join(BASE_DIR, "timer.exe")])
-            sys.exit()
-
-        except Exception as e:
-            messagebox.showerror("Ошибка обновления", f"Не удалось установить обновление:\n{e}")
-
     local = get_local_version()
     remote = get_remote_version()
+    update_available = is_newer(remote, local)
 
-    if is_newer(remote, local):
-        win = tk.Toplevel(parent)
-        win.title("Обновление доступно")
-        win.geometry("340x200")
-        win.resizable(False, False)
-        win.attributes("-topmost", True)
-        win.grab_set()
-        win.focus_set()
+    # --- GUI ---
+    win = tk.Toplevel(parent)
+    win.title("Обновление программы")
+    win.geometry("340x200")
+    win.resizable(False, False)
+    win.attributes("-topmost", True)
+    win.grab_set()
 
-        tk.Label(
-            win,
-            text=f"Найдена новая версия {remote}\n(текущая {local})",
-            justify="center",
-            font=("Segoe UI", 10)
-        ).pack(pady=10)
+    tk.Label(
+        win,
+        text=f"Текущая версия: {local}\nДоступная версия: {remote}",
+        justify="center",
+        font=("Segoe UI", 10)
+    ).pack(pady=10)
 
-        tk.Label(win, text="Хотите обновить сейчас?", font=("Segoe UI", 9)).pack(pady=5)
+    progress_var = tk.StringVar(value="Ожидание...")
+    tk.Label(win, textvariable=progress_var, font=("Segoe UI", 9)).pack(pady=5)
 
-        progress_var = tk.StringVar(value="Ожидание...")
-        tk.Label(win, textvariable=progress_var, font=("Segoe UI", 9)).pack(pady=5)
+    def download_and_install():
+        try:
+            temp_path = os.path.join(tempfile.gettempdir(), "TransparentTimerSetup.exe")
+            progress_var.set("Скачивание установщика...")
+            win.update()
 
-        def on_update():
-            threading.Thread(target=download_and_update, daemon=True).start()
+            r = requests.get(RELEASE_URL, stream=True, timeout=30)
+            total = int(r.headers.get("content-length", 0))
+            downloaded = 0
+            with open(temp_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if not chunk:
+                        continue
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total:
+                        progress = downloaded / total * 100
+                        progress_var.set(f"Загрузка: {progress:.1f}%")
+                        win.update()
 
-        def on_cancel():
+            progress_var.set("Запуск установщика...")
+            win.update()
+            subprocess.Popen([temp_path], shell=True)
             win.destroy()
 
-        frame = tk.Frame(win)
-        frame.pack(pady=5)
-        tk.Button(frame, text="Обновить", command=on_update, width=12).pack(side="left", padx=8)
-        tk.Button(frame, text="Позже", command=on_cancel, width=12).pack(side="right", padx=8)
-    else:
-        print("✅ Используется последняя версия.")
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось обновить:\n{e}")
+
+    def start_update():
+        threading.Thread(target=download_and_install, daemon=True).start()
+
+    action_text = "Обновить" if update_available else "Переустановить"
+    tk.Button(win, text=action_text, width=20, command=start_update).pack(pady=10)
+    tk.Button(win, text="Отмена", width=10, command=win.destroy).pack(pady=5)
+
+
+
 
 class InfoDialog(tk.Toplevel):
     """Окно с информацией о приложении."""
@@ -870,7 +826,7 @@ if __name__ == "__main__":
     if os.path.exists(icon_path):
         root.iconbitmap(icon_path)
     app = TransparentTimer(root)
-    root.after(2000, lambda: threading.Thread(target=lambda: check_for_updates(root), daemon=True).start())
+    # root.after(2000, lambda: threading.Thread(target=lambda: check_for_updates(root), daemon=True).start())
     root.mainloop()
     
 #pyinstaller --onefile --windowed --icon=clock.ico --add-data "alarm.wav;." --add-data "version.json;." timer.py
