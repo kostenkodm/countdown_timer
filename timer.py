@@ -405,7 +405,7 @@ class TransparentTimer:
         """Открывает модальное окно для выбора темы, шрифта и цветов."""
         theme_win = tk.Toplevel(self.root)
         theme_win.title("Настройки темы и шрифта")
-        theme_win.geometry("300x320")
+        theme_win.geometry("300x360")
         theme_win.resizable(False, False)
         theme_win.attributes("-topmost", True)
         theme_win.grab_set()
@@ -435,9 +435,24 @@ class TransparentTimer:
         ttk.Label(theme_win, text="Цвета текста таймера:").pack(pady=5)
         color_frame = ttk.Frame(theme_win)
         color_frame.pack(pady=5, fill="x", padx=10)
-        ttk.Button(color_frame, text="Больше 0", command=lambda: self.choose_color("positive")).pack(fill="x", pady=2)
-        ttk.Button(color_frame, text="Меньше 0", command=lambda: self.choose_color("negative")).pack(fill="x", pady=2)
-        ttk.Button(color_frame, text="Часы", command=lambda: self.choose_color("idle")).pack(fill="x", pady=2)
+        
+        # Цвет для времени > 0
+        positive_frame = ttk.Frame(color_frame)
+        positive_frame.pack(fill="x", pady=2)
+        ttk.Button(positive_frame, text="Больше 0", command=lambda: self.choose_color("positive")).pack(side="left", fill="x", expand=True)
+        ttk.Button(positive_frame, text="Сброс", command=lambda: self.reset_color("positive"), style="secondary.TButton", width=8).pack(side="right")
+        
+        # Цвет для времени < 0
+        negative_frame = ttk.Frame(color_frame)
+        negative_frame.pack(fill="x", pady=2)
+        ttk.Button(negative_frame, text="Меньше 0", command=lambda: self.choose_color("negative")).pack(side="left", fill="x", expand=True)
+        ttk.Button(negative_frame, text="Сброс", command=lambda: self.reset_color("negative"), style="secondary.TButton", width=8).pack(side="right")
+        
+        # Цвет для состояния покоя
+        idle_frame = ttk.Frame(color_frame)
+        idle_frame.pack(fill="x", pady=2)
+        ttk.Button(idle_frame, text="Часы", command=lambda: self.choose_color("idle")).pack(side="left", fill="x", expand=True)
+        ttk.Button(idle_frame, text="Сброс", command=lambda: self.reset_color("idle"), style="secondary.TButton", width=8).pack(side="right")
 
     def choose_color(self, color_type):
         """Открывает диалог выбора цвета для текста таймера."""
@@ -450,6 +465,18 @@ class TransparentTimer:
                 self.fg_negative = color[1]
             elif color_type == "idle":
                 self.fg_idle = color[1]
+            self.apply_settings()
+            self.save_settings()
+
+    def reset_color(self, color_type):
+        """Сбрасывает цвет текста таймера к значению по умолчанию."""
+        default_colors = {
+            "positive": "#00FF00",
+            "negative": "#FF0000",
+            "idle": "#808080"
+        }
+        if color_type in default_colors:
+            setattr(self, f"fg_{color_type}", default_colors[color_type])
             self.apply_settings()
             self.save_settings()
 
@@ -846,4 +873,4 @@ if __name__ == "__main__":
     root.after(2000, lambda: threading.Thread(target=lambda: check_for_updates(root), daemon=True).start())
     root.mainloop()
     
-    #pyinstaller --onefile --windowed --icon=clock.ico --add-data "alarm.wav;." --add-data "version.json;." timer.py
+#pyinstaller --onefile --windowed --icon=clock.ico --add-data "alarm.wav;." --add-data "version.json;." timer.py
