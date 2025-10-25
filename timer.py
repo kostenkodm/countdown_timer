@@ -419,7 +419,7 @@ class TransparentTimer:
         """Создаёт главное окно с современной темой и уменьшенными вертикальными отступами."""
         # Основной фрейм (сдвигаем вниз из-за кастомного заголовка)
         main_frame = ttk.Frame(self.root, padding=8)
-        main_frame.pack(fill="both", expand=True, pady=(30, 0))  # Отступ сверху для заголовка
+        main_frame.pack(fill="both", expand=True, pady=(0, 0))  # Отступ сверху для заголовка
 
         # Блок времени
         time_frame = ttk.LabelFrame(main_frame, text="Время", padding=5)
