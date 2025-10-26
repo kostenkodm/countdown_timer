@@ -155,12 +155,13 @@ class TransparentTimer:
     """Основной класс приложения TransparentTimer."""
     def __init__(self, root):
         self.root = root
-        self.root.title(f"Управление таймером - {VERSION}")
+        self.root.title(f"Таймер - {VERSION}")
         self.root.attributes("-topmost", True)
         self.settings_path = os.path.join(CONFIG_DIR, "settings.json")
         self.position_path = os.path.join(CONFIG_DIR, "position.json")
         self.show_clock = True
         self.show_progress = True
+        self.hide_timer = False  # Новая переменная для скрытия таймера
 
         # Инициализация переменных
         self.time_left = 0
@@ -218,19 +219,19 @@ class TransparentTimer:
         self.title_bar.pack(fill="x")
 
         # Кнопка "Кастомизация"
-        self.customize_btn = ttk.Button(self.title_bar, text="Тема", style="Custom.TButton", command=self.open_theme_selection, width=5)
+        self.customize_btn = ttk.Button(self.title_bar, text="Тема", style="secondary.TButton", command=self.open_theme_selection, width=5)
         self.customize_btn.pack(side="left", padx=5, pady=5)
 
         # Кнопка "Обновления"
-        self.update_btn = ttk.Button(self.title_bar, text="Обновить", style="Custom.TButton", command=lambda: check_for_updates(self.root), width=5)
+        self.update_btn = ttk.Button(self.title_bar, text="Обновить", style="secondary.TButton", command=lambda: check_for_updates(self.root), width=5)
         self.update_btn.pack(side="left", padx=5, pady=5)
 
         # Кнопка "Справка"
-        self.help_btn = ttk.Button(self.title_bar, text="?", style="Custom.TButton", command=self.show_info, width=2)
+        self.help_btn = ttk.Button(self.title_bar, text="?", style="secondary.TButton", command=self.show_info, width=2)
         self.help_btn.pack(side="left", padx=5, pady=5)
 
         # Метка с названием
-        self.title_label = tk.Label(self.title_bar, text=f"Управление таймером - {VERSION}", bg="#F0F0F0", fg="#333333", font=("Segoe UI", 10))
+        self.title_label = tk.Label(self.title_bar, text=f"Таймер - {VERSION}", bg="#F0F0F0", fg="#333333", font=("Segoe UI", 10))
         self.title_label.pack(side="left", padx=10, pady=5)
 
         # Кнопка закрытия
@@ -464,36 +465,41 @@ class TransparentTimer:
         self.num_plays_entry.bind("<FocusOut>", lambda e: self.update_num_plays())
         self.sound_var = tk.BooleanVar(value=self.sound_enabled)
         ttk.Checkbutton(sound_frame, text="Воспроизводить сигнал", variable=self.sound_var, command=self.toggle_sound).grid(row=1, column=0, columnspan=3, pady=3, sticky="w")
+        # Кнопки для выбора и воспроизведения сигнала справа
+        ttk.Button(sound_frame, text="Выбрать", command=self.choose_signal, width=9, style="secondary.TButton").grid(row=0, column=2, padx=5, pady=3)
+        ttk.Button(sound_frame, text="▶", command=self.play_sound, width=2, style="secondary.TButton").grid(row=0, column=3, padx=5, pady=3)
 
         # Блок пресетов
         preset_frame = ttk.LabelFrame(main_frame, text="Пресеты", padding=5)
         preset_frame.pack(fill="x", pady=3)
         ttk.Label(preset_frame, text="Выбрать:").grid(row=0, column=0, padx=10, pady=3, sticky="e")
         self.preset_var = tk.StringVar()
-        self.preset_combo = ttk.Combobox(preset_frame, textvariable=self.preset_var, state="readonly", width=20)
+        self.preset_combo = ttk.Combobox(preset_frame, textvariable=self.preset_var, state="readonly", width=10)
         self.update_preset_menu()
         self.preset_combo.grid(row=0, column=1, pady=3)
         preset_button_frame = ttk.Frame(preset_frame)
         preset_button_frame.grid(row=0, column=2, padx=10, pady=3)
-        ttk.Button(preset_button_frame, text="Сохранить", command=self.save_new_preset).pack(side="left", padx=3)
-        ttk.Button(preset_button_frame, text="Удалить", command=self.delete_preset, style="danger.TButton").pack(side="left", padx=3)
+        ttk.Button(preset_button_frame, text="Сохранить", command=self.save_new_preset, style="secondary.TButton").pack(side="left", padx=3)
+        ttk.Button(preset_button_frame, text="Удалить", command=self.delete_preset, style="secondary.TButton").pack(side="left", padx=3)
 
         # Блок кнопок
         button_frame = ttk.Frame(main_frame, padding=5)
         button_frame.pack(fill="x", pady=5)
-        ttk.Button(button_frame, text="Старт", command=self.start_timer, width=9).pack(side="left", padx=3)
-        ttk.Button(button_frame, text="Стоп", command=self.stop_timer, width=9).pack(side="left", padx=3)
-        ttk.Button(button_frame, text="Сигнал", command=self.choose_signal, width=9).pack(side="left", padx=3)
-        ttk.Button(button_frame, text="▶", command=self.play_sound, width=2).pack(side="left", padx=3)
-        ttk.Button(button_frame, text="Сброс поз.", command=self.reset_timer_position, width=11, style="danger.TButton").pack(side="left", padx=3)
+        ttk.Button(button_frame, text="Старт", command=self.start_timer, width=13, style="success.TButton").pack(side="left", padx=3)
+        ttk.Button(button_frame, text="Стоп", command=self.stop_timer, width=13).pack(side="left", padx=3)
+        ttk.Button(button_frame, text="Сброс поз.", command=self.reset_timer_position, width=12, style="danger.TButton").pack(side="left", padx=3)
 
         # Блок чекбоксов
         bottom_frame = ttk.Frame(main_frame)
         bottom_frame.pack(fill="x", pady=3)
         self.clock_var = tk.BooleanVar(value=self.show_clock)
-        ttk.Checkbutton(bottom_frame, text="Показывать время в покое", variable=self.clock_var, command=self.toggle_clock_mode).pack(side="left", pady=3)
+        ttk.Checkbutton(bottom_frame, text="Часы", variable=self.clock_var, command=self.toggle_clock_mode).pack(side="left", pady=3, padx=10)
+        # Чекбокс для скрытия таймера
+        self.hide_timer_var = tk.BooleanVar(value=self.hide_timer)
+        ttk.Checkbutton(bottom_frame, text="Скрывать в покое", variable=self.hide_timer_var, command=self.toggle_timer_visibility).pack(side="left", pady=3, padx=10)
         self.progress_var = tk.BooleanVar(value=self.show_progress)
-        ttk.Checkbutton(bottom_frame, text="Показывать прогресс", variable=self.progress_var, command=self.toggle_progress_bar).pack(side="right", pady=3)
+        ttk.Checkbutton(bottom_frame, text="Полоска", variable=self.progress_var, command=self.toggle_progress_bar).pack(side="left", pady=3, padx=10)
+
 
     def create_timer_window(self):
         """Создаёт прозрачное окно таймера с прогресс-баром."""
@@ -544,6 +550,7 @@ class TransparentTimer:
         self.timer_label.bind("<ButtonPress-1>", self.start_move_timer)
         self.timer_label.bind("<B1-Motion>", self.do_move_timer)
         self.timer_label.bind("<ButtonRelease-1>", lambda e: self.save_position())
+        self.toggle_timer_visibility()  # Применяем начальное состояние видимости
 
     def start_move_timer(self, event):
         """Начинает перемещение окна таймера."""
@@ -571,6 +578,15 @@ class TransparentTimer:
             self.progress_bar.pack_forget()
         self.save_settings()
 
+    def toggle_timer_visibility(self):
+        """Включает/выключает видимость окна таймера."""
+        self.hide_timer = self.hide_timer_var.get()
+        if self.hide_timer and not self.running and self.time_left == 0:
+            self.timer_window.withdraw()
+        else:
+            self.timer_window.deiconify()
+        self.save_settings()
+
     def update_clock(self):
         """Обновляет часы в окне таймера, если он не активен."""
         if not self.running and self.time_left == 0:
@@ -585,6 +601,7 @@ class TransparentTimer:
                     self.style.configure("Horizontal.ThinProgressBar.TProgressbar", background=self.fg_idle)
                 except Exception:
                     self.style.configure("Horizontal.TProgressbar", background=self.fg_idle)
+            self.toggle_timer_visibility()
         self.root.after(1000, self.update_clock)
 
     def apply_settings(self):
@@ -625,6 +642,7 @@ class TransparentTimer:
         self.signal_played = False
         if not self.running:
             self.running = True
+            self.timer_window.deiconify()  # Показываем окно при старте
             threading.Thread(target=self.update_timer, daemon=True).start()
 
     def pause_timer(self):
@@ -743,6 +761,7 @@ class TransparentTimer:
                     self.num_plays = data.get("num_plays", 1)
                     self.sound_enabled = data.get("sound_enabled", True)
                     self.theme_name = data.get("theme_name", "flatly")
+                    self.hide_timer = data.get("hide_timer", False)
             except Exception:
                 pass
 
@@ -763,6 +782,7 @@ class TransparentTimer:
             "num_plays": self.num_plays,
             "sound_enabled": self.sound_enabled,
             "theme_name": self.theme_name,
+            "hide_timer": self.hide_timer,
         }
         with open(self.settings_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -816,12 +836,10 @@ class TransparentTimer:
     def get_default_presets(self):
         """Возвращает стандартные пресеты."""
         return {
-            "Ларин": {"minutes": 5, "seconds": 0, "font_size": 33, "opacity": 0.8, "bg_color": "white", "num_plays": 1, "sound_enabled": True},
-            "Пегов": {"minutes": 3, "seconds": 0, "font_size": 33, "opacity": 0.8, "bg_color": "white", "num_plays": 1, "sound_enabled": True}
         }
 
     def apply_preset(self, event=None):
-        """Применяет выбранный пресет."""
+        """Применяет выбранный пресet."""
         preset_name = self.preset_var.get()
         if preset_name in self.presets:
             preset = self.presets[preset_name]
@@ -855,7 +873,7 @@ class TransparentTimer:
             self.update_preset_menu()
 
     def delete_preset(self):
-        """Удаляет выбранный пресet."""
+        """Удаляет выбранный пресет."""
         preset_name = self.preset_var.get()
         if preset_name in self.presets:
             del self.presets[preset_name]
