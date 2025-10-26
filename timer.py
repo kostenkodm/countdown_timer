@@ -94,7 +94,17 @@ def check_for_updates(parent):
             progress_var.set("Скачивание установщика...")
             win.update()
 
-            r = requests.get(RELEASE_URL, stream=True, timeout=30)
+            # Добавляем заголовки для отключения кэша и уникальный параметр
+            headers = {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+            import time
+            timestamp = int(time.time())
+            release_url_with_no_cache = f"{RELEASE_URL}?_={timestamp}"
+
+            r = requests.get(release_url_with_no_cache, stream=True, timeout=30, headers=headers)
             total = int(r.headers.get("content-length", 0))
             downloaded = 0
             with open(temp_path, "wb") as f:
