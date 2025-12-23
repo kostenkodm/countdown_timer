@@ -433,7 +433,7 @@ class TransparentTimer:
         main_frame.pack(fill="both", expand=True, pady=(0, 0))  # Отступ сверху для заголовка
 
         # Блок времени
-        time_frame = ttk.LabelFrame(main_frame, text="Время", padding=5)
+        time_frame = ttk.Labelframe(main_frame, text="Время", padding=5)
         time_frame.pack(fill="x", pady=3)
         ttk.Label(time_frame, text="Минуты:").grid(row=0, column=0, padx=10, pady=3, sticky="e")
         self.minutes_entry = ttk.Entry(time_frame, width=8)
@@ -445,7 +445,7 @@ class TransparentTimer:
         self.seconds_entry.grid(row=0, column=3, pady=3)
 
         # Блок визуала
-        visual_frame = ttk.LabelFrame(main_frame, text="Визуал", padding=5)
+        visual_frame = ttk.Labelframe(main_frame, text="Визуал", padding=5)
         visual_frame.pack(fill="x", pady=3)
         ttk.Label(visual_frame, text="Размер шрифта:").grid(row=0, column=0, padx=10, pady=3, sticky="e")
         self.font_scale = ttk.Scale(visual_frame, from_=10, to=60, orient=tk.HORIZONTAL, command=lambda v: self.apply_settings())
@@ -466,7 +466,7 @@ class TransparentTimer:
         bg_combo.bind("<<ComboboxSelected>>", lambda e: self.apply_settings())
 
         # Блок звука
-        sound_frame = ttk.LabelFrame(main_frame, text="Звук", padding=5)
+        sound_frame = ttk.Labelframe(main_frame, text="Звук", padding=5)
         sound_frame.pack(fill="x", pady=3)
         ttk.Label(sound_frame, text="Кол-во воспр.:").grid(row=0, column=0, padx=10, pady=3, sticky="e")
         self.num_plays_entry = ttk.Entry(sound_frame, width=8)
@@ -480,7 +480,7 @@ class TransparentTimer:
         ttk.Button(sound_frame, text="▶", command=self.play_sound, width=2, style="secondary.TButton").grid(row=0, column=3, padx=5, pady=3)
 
         # Блок пресетов
-        preset_frame = ttk.LabelFrame(main_frame, text="Пресеты", padding=5)
+        preset_frame = ttk.Labelframe(main_frame, text="Пресеты", padding=5)
         preset_frame.pack(fill="x", pady=3)
         ttk.Label(preset_frame, text="Выбрать:").grid(row=0, column=0, padx=10, pady=3, sticky="e")
         self.preset_var = tk.StringVar()
